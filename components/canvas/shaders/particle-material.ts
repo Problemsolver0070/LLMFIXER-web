@@ -148,8 +148,10 @@ export function createParticleMaterial(
     clamp(uMatLogoGlow, float(0), float(1)),
   );
 
-  // ---- Supernovae always read as hot white regardless of species ----
-  const supernovaColor = vec3(1.0, 0.96, 0.88);
+  // ---- Supernovae no longer hot-white — was vec3(1.0, 0.96, 0.88), too
+  // bright for the ASMR pass. Pulled toward muted warm so they read as
+  // accent points, not stadium spotlights. ----
+  const supernovaColor = vec3(0.65, 0.55, 0.45);
   const classedColorRaw = mix(logoColor, supernovaColor, isAtLeastSupernova);
 
   // ---- Time-of-day palette shift (mechanic 6) ----
@@ -161,7 +163,9 @@ export function createParticleMaterial(
   const warmTarget   = vec3(1.00, 0.92, 0.78); // cream
   const coolTarget   = vec3(0.55, 0.78, 1.00); // saturated cool blue
   const purpleTarget = vec3(0.78, 0.55, 1.00); // magenta-purple
-  const todMaxShift = float(0.20);
+  // todMaxShift dropped 0.20 → 0.05. The "golden bright" feel was largely
+  // the evening warm-shift at 17% mix toward cream — gone now.
+  const todMaxShift = float(0.05);
   let classedColor = mix(classedColorRaw, warmTarget,   mul(uTimeWarm,   todMaxShift));
   classedColor     = mix(classedColor,    coolTarget,   mul(uTimeCool,   todMaxShift));
   classedColor     = mix(classedColor,    purpleTarget, mul(uTimePurple, todMaxShift));
@@ -212,11 +216,10 @@ export function createParticleMaterial(
 
   // ---- Final opacity (low per-particle — additive blending accumulates) ----
   const baseAlpha = mul(
-    // Calibrated 0.16 — between the original 0.12 (read as dirt) and
-    // 0.20 (read as too-busy). Atomic discreteness preserved via twinkle +
-    // class modulation; supernova ratio + sky tint do the heavy lifting
-    // for "this is a cosmos, not specks."
-    float(0.16),
+    // Slammed down 0.16 → 0.06 for the ASMR/dim pass. Per-particle
+    // luminance is now near-floor; visibility comes from screen-size
+    // (particleSize 0.10 = 5px) + soft halo, NOT raw alpha.
+    float(0.06),
     breathFactor,
     twinkleFactor,
     distanceFade,

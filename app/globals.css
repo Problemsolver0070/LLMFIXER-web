@@ -32,9 +32,9 @@ html, body {
 /* ------------------------------------------------------------------ */
 /*  Cosmos atmospheric backdrop                                        */
 /* ------------------------------------------------------------------ */
-/* A subtle full-viewport radial gradient that sits BEHIND the canvas. */
-/* Gives the field a sense that "the center is brighter / the void has */
-/* atmosphere," without re-introducing the bad 5-fixed-bulbs nebulae.   */
+/* Atmospheric backdrop — slammed down hard for the ASMR pass.            */
+/* Was a noticeable bright wash; now a barely-perceptible gravity well   */
+/* of subtle depth at the focal point. Whisper, not shout.               */
 body::before {
   content: "";
   position: fixed;
@@ -43,21 +43,10 @@ body::before {
   pointer-events: none;
   background:
     radial-gradient(
-      ellipse 65% 55% at 50% 45%,
-      oklch(0.20 0.06 265 / 0.55) 0%,
-      oklch(0.16 0.04 265 / 0.30) 35%,
-      oklch(0.12 0.02 265 / 0.10) 65%,
+      ellipse 60% 50% at 50% 45%,
+      oklch(0.16 0.04 265 / 0.18) 0%,
+      oklch(0.12 0.02 265 / 0.06) 50%,
       transparent 100%
-    ),
-    radial-gradient(
-      ellipse 80% 80% at 80% 20%,
-      oklch(0.18 0.07 30 / 0.20) 0%,
-      transparent 60%
-    ),
-    radial-gradient(
-      ellipse 70% 70% at 15% 85%,
-      oklch(0.18 0.06 200 / 0.18) 0%,
-      transparent 60%
     );
 }
 

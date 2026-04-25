@@ -90,7 +90,9 @@ export class CosmosEngine {
   private _baseDriftSpeed: number = PARTICLE_CONFIG.driftSpeed;
   /** Idle peak: drift speed boost (50% above default), and soft logo glow. */
   private static readonly IDLE_DRIFT_PEAK = PARTICLE_CONFIG.driftSpeed * 1.5;
-  private static readonly IDLE_GLOW_PEAK = 0.25;
+  // Idle glow dropped 0.25 → 0.08 — was a perceptible warm pulse, now a
+  // breath. Stillness rewards the patient without lighting the eyes.
+  private static readonly IDLE_GLOW_PEAK = 0.08;
 
   /** Latest cursor in client-space, kept so we can re-project to world coords
    *  on every tick (camera drifts, so the projection drifts with it). */
@@ -282,7 +284,10 @@ export class CosmosEngine {
   private setupRenderPipeline(): void {
     try {
       const scenePass = pass(this.scene, this.camera);
-      const bloomPass = bloom(scenePass, 0.25, 0.3, 0.1);
+      // Bloom strength dropped hard 0.25 → 0.04, threshold raised 0.1 → 0.4
+      // so only true peak events bloom and the bloom is barely-there velvet,
+      // not a halo bath over everything.
+      const bloomPass = bloom(scenePass, 0.04, 0.5, 0.4);
       const outputNode = scenePass.add(bloomPass);
 
       this.renderPipeline = new RenderPipeline(this.renderer, outputNode);

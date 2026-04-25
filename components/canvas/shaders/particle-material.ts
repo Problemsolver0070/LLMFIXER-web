@@ -212,7 +212,10 @@ export function createParticleMaterial(
 
   // ---- Final opacity (low per-particle — additive blending accumulates) ----
   const baseAlpha = mul(
-    float(0.12),
+    // Bumped from 0.12 → 0.20 (~65% brighter baseline). The earlier value
+    // made the field read as scattered specks ("looks like dirt") at hero
+    // scale. Atomic discreteness is preserved by twinkle + class modulation.
+    float(0.20),
     breathFactor,
     twinkleFactor,
     distanceFade,

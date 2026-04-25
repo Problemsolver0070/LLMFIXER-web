@@ -265,9 +265,11 @@ export default function HeroSection() {
         onUpdate: () => engine.particles.setLogoGlow(glowState.value),
       }, 2.0);
 
-      // Mark relaxes — particles still drawn to it but ambient drift returns
+      // Mark relaxes — particles still drawn to it but ambient drift returns.
+      // Bumped from 0.30 → 0.45 so the central cluster stays visibly cohesive
+      // post-genesis instead of dispersing into uniform "dirt-like" haze.
       timeline.to(seekState, {
-        value: 0.30,
+        value: 0.45,
         duration: 1.6,
         ease: "power1.inOut",
         onUpdate: () => engine.particles.setSeekStrength(seekState.value),

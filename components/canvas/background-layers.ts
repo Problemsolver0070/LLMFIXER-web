@@ -94,7 +94,9 @@ export function createStarSky(count: number = 4000): Points {
   // Per-vertex color + size, with a uniform tint multiplier for global control.
   // Stars at this scale (0.02-0.20) are sub-pixel — no UV-based radial alpha
   // is needed; they read as point glints regardless of square-quad rendering.
-  const skyTint = uniform(float(0.85));
+  // Sky tint multiplier — bumped 0.85 → 1.25 so the background star sky reads
+  // as a real celestial dome instead of a barely-there mist.
+  const skyTint = uniform(float(1.25));
   const colorAttr = attribute("color", "vec3");
   const sizeAttr = attribute("size", "float");
   material.colorNode = vec4(colorAttr, skyTint);

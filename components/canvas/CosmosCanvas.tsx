@@ -15,30 +15,13 @@ import { setCosmosEngine } from "@/lib/cosmos-ref";
 import { setTilt } from "@/lib/tilt-state";
 
 /* ------------------------------------------------------------------ */
-/*  iOS DeviceOrientation permission helper                           */
-/* ------------------------------------------------------------------ */
-
-interface DeviceOrientationEventiOS extends DeviceOrientationEvent {
-  requestPermission?: () => Promise<"granted" | "denied">;
-}
-
-async function requestOrientationPermission(): Promise<boolean> {
-  const DOE = DeviceOrientationEvent as unknown as DeviceOrientationEventiOS;
-  if (typeof DOE.requestPermission === "function") {
-    try {
-      const permission = await DOE.requestPermission();
-      return permission === "granted";
-    } catch {
-      return false;
-    }
-  }
-  // Non-iOS — permission not needed
-  return true;
-}
-
-/* ------------------------------------------------------------------ */
 /*  Component                                                         */
 /* ------------------------------------------------------------------ */
+/* iOS DeviceOrientation permission flow lives in components/GyroPrompt.tsx
+ * — an explicit user-gesture button. CosmosCanvas just registers the
+ * deviceorientation listener unconditionally; on iOS without permission
+ * the listener stays silent, on iOS with permission (or non-iOS) it fires
+ * normally. */
 
 export default function CosmosCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -233,19 +216,6 @@ export default function CosmosCanvas() {
     const engine = new CosmosEngine(canvas);
     engineRef.current = engine;
 
-    // iOS requires DeviceOrientationEvent.requestPermission() inside
-    // a user gesture handler (touchstart/click). Hoist the handler so
-    // it can be cleaned up if the component unmounts before the gesture.
-    const requestGyro = async () => {
-      if (disposed) return;
-      const hasPermission = await requestOrientationPermission();
-      if (hasPermission && !disposed) {
-        window.addEventListener("deviceorientation", handleOrientation, {
-          passive: true,
-        });
-      }
-    };
-
     const bootstrap = async () => {
       try {
         await engine.init();
@@ -271,8 +241,10 @@ export default function CosmosCanvas() {
         window.addEventListener("touchend", handleTouchEnd, { passive: true });
         window.addEventListener("touchcancel", handleTouchEnd, { passive: true });
 
-        // Attach one-shot touchstart listener for iOS gyroscope permission
-        window.addEventListener("touchstart", requestGyro, { once: true });
+        // Device orientation listener registered unconditionally. On iOS
+        // without permission it stays silent until GyroPrompt grants it;
+        // on Android / desktop / iOS-with-permission it fires normally.
+        window.addEventListener("deviceorientation", handleOrientation, { passive: true });
       } catch (err) {
         console.error("[CosmosCanvas] Failed to initialise engine:", err);
         setFailed(true);
@@ -297,7 +269,6 @@ export default function CosmosCanvas() {
         clearInterval(touchStateRef.current.holdTimer);
       }
       window.removeEventListener("deviceorientation", handleOrientation);
-      window.removeEventListener("touchstart", requestGyro);
 
       setCosmosEngine(null);
       engine.dispose();

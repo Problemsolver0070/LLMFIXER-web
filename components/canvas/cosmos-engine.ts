@@ -91,6 +91,10 @@ export class CosmosEngine {
   private _lastClientY = -9999;
   private _hasPointerInput = false;
 
+  /** Smoothed scroll progress (mechanic: prevent mobile fling lurches). */
+  private _targetScrollProgress = 0;
+  private _smoothedScrollProgress = 0;
+
   private unsubscribeScroll: (() => void) | null = null;
 
   /** Public access for animation controllers (e.g. HeroSection GSAP timeline) */
@@ -236,8 +240,10 @@ export class CosmosEngine {
     this.performanceMonitor = new PerformanceMonitor(perfConfig);
 
     // ---- Scroll subscription ----
+    // Capture target only; the engine tick smooths and applies it (prevents
+    // mobile inertial-fling spikes from slingshotting the field).
     this.unsubscribeScroll = onScrollUpdate((progress) => {
-      this.particleSystem.setScrollProgress(progress);
+      this._targetScrollProgress = progress;
     });
 
     // ---- Time-of-day palette shift (mechanic 6) ----
@@ -310,11 +316,26 @@ export class CosmosEngine {
     const deltaTime = Math.min(time - (this.lastTime - this.startTime), 0.05);
     this.lastTime = now / 1000;
 
-    // ---- Performance monitoring & adaptive quality ----
+    // ---- FPS sample (logged via getStats; no longer drives particle count) ----
+    // PerformanceMonitor was previously cutting particle count when FPS dipped.
+    // That caused visible cliff-drops mid-scene and assumed weak hardware that
+    // isn't our target audience. Removed — particle count is now set once at
+    // init and stays there.
     this.performanceMonitor.recordFrame(now);
-    const targetCount = this.performanceMonitor.getParticleCount();
-    if (targetCount !== this.particleSystem.getParticleCount()) {
-      this.particleSystem.setParticleCount(targetCount);
+
+    // ---- Smooth scrollProgress (mobile fling can spike progress) ----
+    // Lerp the actually-applied scroll value toward the latest reported
+    // progress at ~6% per frame ≈ 270 ms half-life. Without this, inertial
+    // scroll on phones causes outward radial force to ramp instantly,
+    // which reads as the field "lurching."
+    if (this._smoothedScrollProgress !== this._targetScrollProgress) {
+      const k = 0.06;
+      this._smoothedScrollProgress += (this._targetScrollProgress - this._smoothedScrollProgress) * k;
+      // Snap when close enough to avoid micro-jitter.
+      if (Math.abs(this._targetScrollProgress - this._smoothedScrollProgress) < 0.001) {
+        this._smoothedScrollProgress = this._targetScrollProgress;
+      }
+      this.particleSystem.setScrollProgress(this._smoothedScrollProgress);
     }
 
     // ---- Update uniforms ----

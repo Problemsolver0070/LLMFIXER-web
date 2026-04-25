@@ -16,6 +16,7 @@ import {
   SpriteNodeMaterial,
   AdditiveBlending,
   Color,
+  Vector3,
 } from "three/webgpu";
 
 import {
@@ -54,6 +55,24 @@ export const uMatScrollProgress = /* @__PURE__ */ uniform(float(0));
 export const uMatParticleSize = /* @__PURE__ */ uniform(float(0.04));
 export const uMatLogoGlow = /* @__PURE__ */ uniform(float(0));
 export const uNoBloom = /* @__PURE__ */ uniform(float(0));
+
+/* ---- Cursor / touch lensing (mechanic 2) ----
+ * uPointerWorld is the projected pointer position in world space (vec3).
+ * uPointerStrength is a 0..1 multiplier — 0 fully disables the halo even
+ * when uPointerWorld is set. Mutate via the Vector3 `value` property.
+ */
+export const uPointerWorld = /* @__PURE__ */ uniform(new Vector3(0, 0, 0));
+export const uPointerStrength = /* @__PURE__ */ uniform(float(0));
+
+/* ---- Time-of-day palette shift (mechanic 6) ----
+ * Three independent perceptual weights, each 0..1. The shader nudges the
+ * per-particle color toward warm-cream / saturated-blue / magenta-purple
+ * depending on the local hour. Maximum mix factor is small (~0.2) so the
+ * effect is only noticeable across visits, never within one.
+ */
+export const uTimeWarm = /* @__PURE__ */ uniform(float(0));
+export const uTimeCool = /* @__PURE__ */ uniform(float(0));
+export const uTimePurple = /* @__PURE__ */ uniform(float(0));
 
 /* ------------------------------------------------------------------ */
 /*  Colors                                                            */
@@ -131,7 +150,21 @@ export function createParticleMaterial(
 
   // ---- Supernovae always read as hot white regardless of species ----
   const supernovaColor = vec3(1.0, 0.96, 0.88);
-  const classedColor = mix(logoColor, supernovaColor, isAtLeastSupernova);
+  const classedColorRaw = mix(logoColor, supernovaColor, isAtLeastSupernova);
+
+  // ---- Time-of-day palette shift (mechanic 6) ----
+  // Subtle bias toward dawn-warm (cream), evening-warm (cream),
+  // night-cool (saturated blue), or late-night (magenta-purple).
+  // Each shift caps at ~0.20 mix factor so it's a perceptual nudge, not
+  // a recolor — visitors should only notice "the cosmos felt different
+  // last time" on return, not within a session.
+  const warmTarget   = vec3(1.00, 0.92, 0.78); // cream
+  const coolTarget   = vec3(0.55, 0.78, 1.00); // saturated cool blue
+  const purpleTarget = vec3(0.78, 0.55, 1.00); // magenta-purple
+  const todMaxShift = float(0.20);
+  let classedColor = mix(classedColorRaw, warmTarget,   mul(uTimeWarm,   todMaxShift));
+  classedColor     = mix(classedColor,    coolTarget,   mul(uTimeCool,   todMaxShift));
+  classedColor     = mix(classedColor,    purpleTarget, mul(uTimePurple, todMaxShift));
 
   // ---- Breathing / pulsing brightness ----
   const breathPhase = add(uMatTime.mul(0.5), particleHash.mul(6.2831));
@@ -149,6 +182,19 @@ export function createParticleMaterial(
   const dist = length(pos);
   const distanceFade = smoothstep(float(30), float(18), dist);
   const centerBoost = smoothstep(float(0), float(6), dist);
+
+  // ---- Cursor / touch lensing halo (mechanic 2) ----
+  // Particles within ~3 world units of the projected pointer position get
+  // an alpha emphasis; smoothly falls off to 0 at distance 3+. This is a
+  // visual "energized atoms" halo around where the viewer is looking,
+  // separate from the curl-noise force in the compute shader.
+  const pointerDist = length(sub(pos, uPointerWorld));
+  // Inner peak at distance 0.5 (fully energized), outer fade by 3.0.
+  // smoothstep(3.0, 0.5, d) returns 1 at center, 0 beyond 3 units.
+  const pointerProximity = smoothstep(float(3.0), float(0.5), pointerDist);
+  // Multiplied by external strength so brief flares (e.g. tap nova) can
+  // pulse the halo without re-projecting world coords every frame.
+  const pointerEmphasis = mul(pointerProximity, uPointerStrength);
 
   // ---- Class-based alpha modifier ----
   // dust = much fainter (large blurry), nebula = even fainter (atmospheric),
@@ -208,10 +254,17 @@ export function createParticleMaterial(
   // Velocity-based alpha boost — fast particles glow brighter (trail luminance)
   const velocityAlpha = mul(speed.div(float(4.0)), float(0.05));
 
-  // Boost alpha during logo glow for brighter convergence
+  // Boost alpha during logo glow for brighter convergence.
+  // Pointer halo (mechanic 2) adds up to ~0.18 alpha at the cursor center,
+  // creating the visible "atoms light up where you look" emphasis.
   const maxGlowAlpha = mix(float(0.35), float(0.7), uNoBloom);
   const glowAlpha = clamp(
-    add(finalAlpha, uMatLogoGlow.mul(float(0.15)), velocityAlpha),
+    add(
+      finalAlpha,
+      uMatLogoGlow.mul(float(0.15)),
+      velocityAlpha,
+      mul(pointerEmphasis, float(0.18)),
+    ),
     float(0.008),
     maxGlowAlpha,
   );

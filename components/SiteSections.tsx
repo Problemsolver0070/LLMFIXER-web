@@ -34,7 +34,9 @@ function WhatSection() {
             while preserving perfect recall. Your tools — Cursor, Claude Code,
             Aider, the SDK call you wrote yesterday — stay unchanged. The cosmos
             behind the API remembers everything; it only ever speaks the parts
-            that matter for the question at hand.
+            that matter for the question at hand.{" "}
+            <span className="text-[color:var(--celestial-white)]">48 hours free</span>,
+            no credit card, all models unlocked.
           </p>
         </Reveal>
       </div>
@@ -104,9 +106,11 @@ const SNIPPETS: { label: string; code: string }[] = [
     code: `import OpenAI from "openai";
 const openai = new OpenAI({
   baseURL: "https://api.thefixer.in/v1",
-  apiKey:  "opto_…",         // The Fixer key
-  defaultHeaders: { "x-openai-key": "sk-…" }, // your key, never seen
-});`,
+  apiKey:  "opto_…",   // The Fixer key — that's it
+});
+
+// We hold the upstream OpenAI / Anthropic / Gemini keys.
+// You don't manage provider credentials.`,
   },
   {
     label: "Anthropic SDK",
@@ -114,7 +118,6 @@ const openai = new OpenAI({
 const claude = new Anthropic({
   baseURL: "https://api.thefixer.in",
   apiKey:  "opto_…",
-  defaultHeaders: { "x-anthropic-key": "sk-ant-…" },
 });`,
   },
   {
@@ -171,14 +174,20 @@ function CTASection() {
       <div className="max-w-3xl text-center">
         <Reveal>
           <h2 className="text-4xl sm:text-6xl font-light tracking-tight leading-[1.05] mb-8">
-            Save your team&apos;s tokens.
+            48 hours unlimited.
             <br />
-            <span className="text-[color:var(--gold-bright)]">Without rewriting anything.</span>
+            <span className="text-[color:var(--gold-bright)]">No card. Just an email.</span>
           </h2>
         </Reveal>
         <Reveal delay={160}>
-          <p className="text-lg text-[color:var(--celestial-dim)] mb-12 max-w-xl mx-auto">
-            Bring your own keys. Keep your tools. Watch the bills shrink.
+          <p className="text-lg text-[color:var(--celestial-dim)] mb-4 max-w-xl mx-auto">
+            After your trial: <span className="text-[color:var(--celestial-white)]">$9.99/week</span> for the first week,
+            <span className="text-[color:var(--celestial-white)]"> $19.99/week</span> after that. Cancel anytime.
+          </p>
+        </Reveal>
+        <Reveal delay={200}>
+          <p className="text-sm text-[color:var(--celestial-dim)]/70 mb-12 max-w-xl mx-auto">
+            All upstream provider costs included. You don&apos;t bring your own keys — we hold them.
           </p>
         </Reveal>
         <Reveal delay={280}>
@@ -186,7 +195,7 @@ function CTASection() {
             href="/get-key"
             className="inline-flex items-center gap-2 px-8 py-4 border border-[color:var(--gold-bright)]/60 text-[color:var(--gold-bright)] hover:bg-[color:var(--gold-bright)]/10 transition-colors duration-300 text-base tracking-wide"
           >
-            Get an API key
+            Start 48-hour free trial
             <span aria-hidden="true">→</span>
           </a>
         </Reveal>

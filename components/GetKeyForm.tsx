@@ -1,14 +1,15 @@
 "use client";
 
 /**
- * GetKeyForm — email signup → backend issues an opto_ key → display once.
+ * GetKeyForm — email signup → backend issues an opto_ key + starts a 48h
+ * unlimited trial → display once.
  *
- * Today: no auth, no payment gate. Backend stores user_id + email; the key
- * itself is never persisted (the user must save it from this view, since
- * we cannot show it again).
+ * Today: no auth, no payment gate. Backend stores user_id + email + a
+ * trial_ends_at = now + 48h. The key itself is never persisted (the user
+ * must save it from this view, since we cannot show it again).
  *
- * Next iterations: PayPal Subscriptions checkout between the email submit
- * and the key reveal, plus email verification.
+ * Next iteration: PayPal Subscriptions ($0 trial → $9.99/wk → $19.99/wk)
+ * gating, plus email verification.
  */
 
 import { useState, type FormEvent } from "react";
@@ -19,11 +20,32 @@ const API_BASE =
 
 type View = "form" | "loading" | "key" | "error";
 
+interface IssuedResponse {
+  key: string;
+  user_id: string;
+  email: string;
+  status: string;
+  trial_ends_at: string | null;
+  message: string;
+}
+
+function formatTrialEnds(iso: string | null): string {
+  if (!iso) return "in 48 hours";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "in 48 hours";
+  // E.g. "Sun, Apr 27, 11:36 AM"
+  const fmt = new Intl.DateTimeFormat(undefined, {
+    weekday: "short", month: "short", day: "numeric",
+    hour: "numeric", minute: "2-digit",
+  });
+  return fmt.format(d);
+}
+
 export default function GetKeyForm() {
   const [view, setView] = useState<View>("form");
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [issuedKey, setIssuedKey] = useState<string | null>(null);
+  const [issued, setIssued] = useState<IssuedResponse | null>(null);
   const [copied, setCopied] = useState(false);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -49,7 +71,7 @@ export default function GetKeyForm() {
         setView("form");
         return;
       }
-      setIssuedKey(data.key);
+      setIssued(data as IssuedResponse);
       setView("key");
     } catch (err) {
       console.error("[GetKeyForm] signup failed:", err);
@@ -59,28 +81,34 @@ export default function GetKeyForm() {
   };
 
   const copyKey = async () => {
-    if (!issuedKey) return;
+    if (!issued) return;
     try {
-      await navigator.clipboard.writeText(issuedKey);
+      await navigator.clipboard.writeText(issued.key);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // ignore — fallback would be a long-press select
+      // ignore
     }
   };
 
   /* ----------------------------------------------------------------- */
-  /*  KEY VIEW — issued, displayed once                                */
+  /*  KEY VIEW                                                          */
   /* ----------------------------------------------------------------- */
-  if (view === "key" && issuedKey) {
+  if (view === "key" && issued) {
     return (
       <div className="max-w-2xl w-full">
         <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--ethereal-glow)]/70 mb-6">
-          Your API key
+          Your trial has started
         </p>
-        <h1 className="text-3xl sm:text-4xl font-light tracking-tight leading-tight mb-8">
-          Save this. It cannot be shown again.
+        <h1 className="text-3xl sm:text-4xl font-light tracking-tight leading-tight mb-4">
+          Save your key. It cannot be shown again.
         </h1>
+        <p className="text-base text-[color:var(--celestial-dim)] mb-8">
+          48 hours of unlimited access. Trial ends{" "}
+          <span className="text-[color:var(--gold-bright)]">
+            {formatTrialEnds(issued.trial_ends_at)}
+          </span>.
+        </p>
 
         <div className="border border-[color:var(--gold-bright)]/40 bg-[color:var(--cosmos-deep)]/60 backdrop-blur-sm">
           <div className="border-b border-white/[0.08] px-5 py-3 flex justify-between items-center text-xs tracking-wide text-[color:var(--celestial-dim)]">
@@ -94,7 +122,7 @@ export default function GetKeyForm() {
             </button>
           </div>
           <pre className="overflow-x-auto p-5 text-sm font-mono leading-relaxed text-[color:var(--celestial-white)] break-all whitespace-pre-wrap">
-{issuedKey}
+{issued.key}
           </pre>
         </div>
 
@@ -105,12 +133,12 @@ export default function GetKeyForm() {
             (or the Anthropic <code className="text-[color:var(--celestial-white)] bg-[color:var(--cosmos-deep)]/60 px-2 py-0.5 rounded text-xs">/v1/messages</code> endpoint).
           </p>
           <p>
-            Pass your provider key (OpenAI / Anthropic / Gemini) via{" "}
-            <code className="text-[color:var(--celestial-white)] bg-[color:var(--cosmos-deep)]/60 px-2 py-0.5 rounded text-xs">x-openai-key</code>{" "}
-            (or x-anthropic-key, x-gemini-key) headers. Your provider key is BYOK — never stored on our side beyond per-request use.
+            That&apos;s the only key you need — we hold the upstream provider keys (OpenAI / Anthropic / Gemini) so you don&apos;t have to manage them.
           </p>
-          <p className="text-[color:var(--gold-bright)]/80">
-            Preview access — unmetered until PayPal subscription rolls out.
+          <p className="text-[color:var(--celestial-dim)]">
+            After the trial:{" "}
+            <span className="text-[color:var(--celestial-white)]">$9.99/week</span> for the first paid week, then{" "}
+            <span className="text-[color:var(--celestial-white)]">$19.99/week</span> recurring. Subscription flow lands soon.
           </p>
         </div>
       </div>
@@ -123,14 +151,16 @@ export default function GetKeyForm() {
   return (
     <div className="max-w-xl w-full">
       <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--ethereal-glow)]/70 mb-6">
-        Get an API key
+        Start your 48-hour free trial
       </p>
       <h1 className="text-4xl sm:text-5xl font-light tracking-tight leading-[1.05] mb-8">
-        One email. One key. Save your team&apos;s tokens from there.
+        One email. One key. Unlimited for 48 hours.
       </h1>
       <p className="text-base text-[color:var(--celestial-dim)] mb-10 leading-relaxed">
-        We&apos;ll generate an <code className="text-[color:var(--celestial-white)]">opto_*</code> key for you. Drop it into your tool&apos;s settings, point it at <code className="text-[color:var(--celestial-white)]">api.thefixer.in/v1</code>, and you&apos;re live.
-        During preview access, no payment is required.
+        We&apos;ll generate an <code className="text-[color:var(--celestial-white)]">opto_*</code> key for you.
+        Drop it into your tool&apos;s settings, point it at <code className="text-[color:var(--celestial-white)]">api.thefixer.in/v1</code>, and you&apos;re live across OpenAI, Anthropic, and Gemini — using our master keys, not yours.
+        <br /><br />
+        After the trial: <span className="text-[color:var(--celestial-white)]">$9.99/week</span> for one week, then <span className="text-[color:var(--celestial-white)]">$19.99/week</span> recurring. No card needed today.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -178,13 +208,14 @@ export default function GetKeyForm() {
             disabled:opacity-50 disabled:cursor-not-allowed
           "
         >
-          {view === "loading" ? "Issuing key…" : "Generate my key"}
+          {view === "loading" ? "Starting trial…" : "Start 48-hour free trial"}
           {view !== "loading" && <span aria-hidden="true">→</span>}
         </button>
 
         <p className="text-xs text-[color:var(--celestial-dim)]/70 leading-relaxed">
-          By generating a key you agree the email above is yours and may receive product updates.
-          PayPal subscription gating arrives next — preview access is unmetered until then.
+          By generating a key you agree the email above is yours and may receive
+          product updates. No credit card during trial. We&apos;ll prompt for
+          subscription before access is interrupted.
         </p>
       </form>
     </div>

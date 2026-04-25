@@ -25,8 +25,6 @@ import {
   uDriftSpeed,
   uBoundaryRadius,
   uSeekStrength,
-  uTiltX,
-  uTiltY,
 } from "./shaders/particle-compute";
 
 import {
@@ -36,11 +34,6 @@ import {
   uMatParticleSize,
   uMatLogoGlow,
   uNoBloom,
-  uPointerWorld,
-  uPointerStrength,
-  uTimeWarm,
-  uTimeCool,
-  uTimePurple,
 } from "./shaders/particle-material";
 
 /* ------------------------------------------------------------------ */
@@ -83,8 +76,6 @@ export class ParticleSystem {
   private posBuffer: StorageInstancedBufferAttribute;
   private velBuffer: StorageInstancedBufferAttribute;
   private targetBuffer: StorageInstancedBufferAttribute;
-  /** Per-particle class id (encoded as float). 0=star, 1=dust, 2=nebula, 3=supernova */
-  private typeBuffer: StorageInstancedBufferAttribute;
 
   /** GPU compute kernel (WebGPU only) */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -105,18 +96,6 @@ export class ParticleSystem {
   private _seekStrength = 0;
   private _logoGlow = 0;
   private _driftSpeed: number = PARTICLE_CONFIG.driftSpeed;
-
-  /** Nova animation state (mechanic 5). Driven entirely by the engine tick
-   *  via getNovaGlow()/getNovaHalo() — no separate RAF, so no race with the
-   *  engine's per-frame uniform writes. Active=true means a nova is in
-   *  flight; getNovaGlow flips it back to false when the decay completes. */
-  private _novaActive = false;
-  private _novaStartMs = 0;
-  private _novaPeak = 0;
-  private _novaWorldX = 0;
-  private _novaWorldY = 0;
-  /** Nova decay duration in seconds. */
-  private static readonly NOVA_DURATION = 1.0;
 
   private disposed = false;
 
@@ -143,15 +122,8 @@ export class ParticleSystem {
       4, // vec4
     );
 
-    // float: per-particle class id. Drives size/alpha/color branching in shader.
-    this.typeBuffer = new StorageInstancedBufferAttribute(
-      this.maxParticles,
-      1, // single float
-    );
-
-    // ---- Initialize positions + types on CPU (works for both WebGPU & WebGL2) ----
+    // ---- Initialize positions on CPU (works for both WebGPU & WebGL2) ----
     this.initPositions();
-    this.initTypes();
 
     // ---- Build compute shader (creates storage nodes) ----
     const { computeUpdate } = createParticleComputeShader(
@@ -161,8 +133,8 @@ export class ParticleSystem {
     );
     this.computeUpdate = computeUpdate;
 
-    // ---- Build material (creates storage nodes for pos + vel + type buffers) ----
-    this.material = createParticleMaterial(this.posBuffer, this.velBuffer, this.typeBuffer);
+    // ---- Build material (creates storage nodes for pos + vel buffers) ----
+    this.material = createParticleMaterial(this.posBuffer, this.velBuffer);
 
     // ---- Build renderable sprite ----
     this.group = new Group();
@@ -182,30 +154,6 @@ export class ParticleSystem {
   /* ---------------------------------------------------------------- */
   /*  CPU position initialization (spherical distribution)            */
   /* ---------------------------------------------------------------- */
-
-  /* ---------------------------------------------------------------- */
-  /*  Per-particle class assignment                                   */
-  /* ---------------------------------------------------------------- */
-  /**
-   * Distribute particle types deterministically across the population.
-   *  - 70% star      (sharp small bright)
-   *  - 22% dust      (faint diffuse)
-   *  - 7%  nebula    (large soft glow)
-   *  - 1%  supernova (rare bright with halo)
-   */
-  private initTypes(): void {
-    const types = this.typeBuffer.array as Float32Array;
-    for (let i = 0; i < this.maxParticles; i++) {
-      const r = Math.random();
-      let t: number;
-      if (r < 0.70)        t = 0.0; // star
-      else if (r < 0.92)   t = 1.0; // dust
-      else if (r < 0.99)   t = 2.0; // nebula
-      else                 t = 3.0; // supernova
-      types[i] = t;
-    }
-    this.typeBuffer.needsUpdate = true;
-  }
 
   private initPositions(): void {
     const posArray = this.posBuffer.array as Float32Array;
@@ -382,13 +330,6 @@ export class ParticleSystem {
     }
   }
 
-  /** Update tilt-driven flow bias (mechanic 4). Engine smooths and writes
-   *  this each tick. Values are normalized -1..1; compute kernel scales. */
-  setTiltFlow(x: number, y: number): void {
-    uTiltX.value = x;
-    uTiltY.value = y;
-  }
-
   getParticleCount(): number {
     return this._activeCount;
   }
@@ -447,37 +388,9 @@ export class ParticleSystem {
     uSeekStrength.value = this._seekStrength;
   }
 
-  /**
-   * External "logoGlow" intensity (e.g. from the HeroSection genesis GSAP
-   * timeline, ambient pulses, or SiteSections). The engine tick reads this
-   * via getExternalLogoGlow() each frame and composes it with the idle
-   * (mechanic 3) and nova (mechanic 5) contributions before writing to the
-   * GPU uniform — so external timelines and engine-driven effects don't
-   * stomp each other.
-   *
-   * We also write the uniform here as a "best effort" fallback for cases
-   * where the engine tick hasn't run yet (e.g. one-frame between init and
-   * first tick). The next tick will recompose the composite value.
-   */
   setLogoGlow(intensity: number): void {
     this._logoGlow = intensity;
     uMatLogoGlow.value = intensity;
-  }
-
-  /** Read the external logoGlow value (set by GSAP timelines, etc.). */
-  getExternalLogoGlow(): number {
-    return this._logoGlow;
-  }
-
-  /**
-   * Engine-only: write a composed logoGlow value directly to the GPU uniform
-   * WITHOUT updating `this._logoGlow`. The engine uses this every tick to
-   * combine external (`_logoGlow`), idle, and nova contributions into a
-   * single applied value, while preserving `_logoGlow` as the source-of-truth
-   * for whatever external timeline last set it.
-   */
-  applyComposedLogoGlow(composed: number): void {
-    uMatLogoGlow.value = composed;
   }
 
   setNoBloom(): void {
@@ -487,86 +400,6 @@ export class ParticleSystem {
   setDriftSpeed(speed: number): void {
     this._driftSpeed = speed;
     uDriftSpeed.value = speed;
-  }
-
-  /**
-   * Set the projected pointer position in world space + an emphasis strength.
-   * Used by the cursor lensing halo (mechanic 2). strength=0 fully disables
-   * the halo, strength=1 is full emphasis. Pass any vec3 — z is generally 0
-   * because we project onto the camera focal plane.
-   */
-  setPointerWorldPosition(x: number, y: number, strength: number): void {
-    uPointerWorld.value.set(x, y, 0);
-    uPointerStrength.value = Math.max(0, Math.min(1, strength));
-  }
-
-  /**
-   * Set the three time-of-day perceptual weights (mechanic 6). Each is 0..1.
-   * Caller is responsible for the time-of-day → weight mapping; this simply
-   * pushes the values to the GPU uniforms.
-   */
-  setTimeOfDay(warm: number, cool: number, purple: number): void {
-    uTimeWarm.value   = Math.max(0, Math.min(1, warm));
-    uTimeCool.value   = Math.max(0, Math.min(1, cool));
-    uTimePurple.value = Math.max(0, Math.min(1, purple));
-  }
-
-  /**
-   * Trigger a tap/click "nova" pulse (mechanic 5).
-   *  - Boosts logoGlow to `peak` (default 0.6, or 0.25 under reduced-motion).
-   *  - Decays to 0 over NOVA_DURATION seconds with an ease-out cubic.
-   *  - The CosmosEngine reads the active nova boost in its tick() loop
-   *    via getNovaGlow()/getNovaHaloStrength() and folds it into the final
-   *    logoGlow + pointerHalo uniforms each frame. This avoids race
-   *    conditions where the engine's own per-tick uniform writes would
-   *    overwrite a directly-driven nova animation.
-   *
-   * Subsequent calls reset the nova back to peak — tap-spam restarts the
-   * animation rather than queueing.
-   */
-  triggerNova(worldX: number, worldY: number, reducedMotion = false): void {
-    if (this.disposed) return;
-    this._novaStartMs = performance.now();
-    this._novaPeak = reducedMotion ? 0.25 : 0.6;
-    this._novaWorldX = worldX;
-    this._novaWorldY = worldY;
-    this._novaActive = true;
-  }
-
-  /**
-   * Returns the current nova logo-glow boost (0 if no active nova).
-   * Called by the engine's tick() to fold the nova into the final glow value.
-   */
-  getNovaGlow(): number {
-    if (!this._novaActive) return 0;
-    const elapsedSec = (performance.now() - this._novaStartMs) / 1000;
-    if (elapsedSec >= ParticleSystem.NOVA_DURATION) {
-      this._novaActive = false;
-      return 0;
-    }
-    const t = elapsedSec / ParticleSystem.NOVA_DURATION;
-    // Ease-out cubic on the decay: peak at t=0, 0 at t=1.
-    const decay = 1 - t;
-    const eased = decay * decay * decay;
-    return this._novaPeak * eased;
-  }
-
-  /**
-   * Returns the current nova halo flare strength (0 if no active nova) and
-   * the world-space center it should be anchored at. Engine uses this to
-   * override the cursor halo briefly during a click.
-   */
-  getNovaHalo(): { strength: number; x: number; y: number } {
-    if (!this._novaActive) return { strength: 0, x: 0, y: 0 };
-    const elapsedSec = (performance.now() - this._novaStartMs) / 1000;
-    if (elapsedSec >= ParticleSystem.NOVA_DURATION) {
-      this._novaActive = false;
-      return { strength: 0, x: 0, y: 0 };
-    }
-    const t = elapsedSec / ParticleSystem.NOVA_DURATION;
-    const decay = 1 - t;
-    const eased = decay * decay * decay;
-    return { strength: eased, x: this._novaWorldX, y: this._novaWorldY };
   }
 
   teleportToTargets(): void {
@@ -599,7 +432,6 @@ export class ParticleSystem {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this._novaActive = false;
     this.material?.dispose();
     this.sprite?.geometry?.dispose();
     this.group.clear();

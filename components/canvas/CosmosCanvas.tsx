@@ -12,16 +12,32 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { CosmosEngine } from "./cosmos-engine";
 import { setCosmosEngine } from "@/lib/cosmos-ref";
-import { setTilt } from "@/lib/tilt-state";
+
+/* ------------------------------------------------------------------ */
+/*  iOS DeviceOrientation permission helper                           */
+/* ------------------------------------------------------------------ */
+
+interface DeviceOrientationEventiOS extends DeviceOrientationEvent {
+  requestPermission?: () => Promise<"granted" | "denied">;
+}
+
+async function requestOrientationPermission(): Promise<boolean> {
+  const DOE = DeviceOrientationEvent as unknown as DeviceOrientationEventiOS;
+  if (typeof DOE.requestPermission === "function") {
+    try {
+      const permission = await DOE.requestPermission();
+      return permission === "granted";
+    } catch {
+      return false;
+    }
+  }
+  // Non-iOS — permission not needed
+  return true;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                         */
 /* ------------------------------------------------------------------ */
-/* iOS DeviceOrientation permission flow lives in components/GyroPrompt.tsx
- * — an explicit user-gesture button. CosmosCanvas just registers the
- * deviceorientation listener unconditionally; on iOS without permission
- * the listener stays silent, on iOS with permission (or non-iOS) it fires
- * normally. */
 
 export default function CosmosCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -31,46 +47,13 @@ export default function CosmosCanvas() {
   /* ---- Mouse handler (stable ref) ---- */
   const handleMouseMove = useCallback((e: MouseEvent) => {
     engineRef.current?.setMousePosition(e.clientX, e.clientY);
-    // Mechanic 3: any mouse motion counts as interaction → resets idle timer.
-    engineRef.current?.notifyInteraction();
   }, []);
 
   const handleMouseLeave = useCallback(() => {
     engineRef.current?.clearMouseInfluence();
   }, []);
 
-  /* ---- Click detection for tap-novas (mechanic 5) ---- */
-  // Track mousedown so we can distinguish a true "click" (no significant
-  // drag between down and up) from a click-and-drag-select gesture.
-  // 10px drag threshold — same value used for the touch path.
-  const DRAG_THRESHOLD_PX = 10;
-  const mouseDownStateRef = useRef({ x: 0, y: 0, active: false });
-
-  const handleMouseDown = useCallback((e: MouseEvent) => {
-    mouseDownStateRef.current.x = e.clientX;
-    mouseDownStateRef.current.y = e.clientY;
-    mouseDownStateRef.current.active = true;
-    // Mechanic 3: a click is interaction even without movement.
-    engineRef.current?.notifyInteraction();
-  }, []);
-
-  const handleMouseUp = useCallback((e: MouseEvent) => {
-    const s = mouseDownStateRef.current;
-    if (!s.active) return;
-    s.active = false;
-    const dx = e.clientX - s.x;
-    const dy = e.clientY - s.y;
-    if (Math.sqrt(dx * dx + dy * dy) <= DRAG_THRESHOLD_PX) {
-      engineRef.current?.triggerNova(e.clientX, e.clientY);
-    }
-    // Mechanic 3: any click (drag or tap) counts as interaction.
-    engineRef.current?.notifyInteraction();
-  }, []);
-
   /* ---- Touch handlers: hold → gravitational well, drag → velocity wake ---- */
-  // maxMovement tracks the largest displacement from startX/startY across the
-  // whole touch lifetime — used in handleTouchEnd to distinguish a genuine
-  // tap (mechanic 5) from a drag gesture. Threshold: DRAG_THRESHOLD_PX.
   const touchStateRef = useRef({
     startX: 0,
     startY: 0,
@@ -78,7 +61,6 @@ export default function CosmosCanvas() {
     prevX: 0,
     prevY: 0,
     prevTime: 0,
-    maxMovement: 0,
     holdTimer: 0 as ReturnType<typeof setInterval> | 0,
   });
 
@@ -93,11 +75,8 @@ export default function CosmosCanvas() {
     state.prevX = touch.clientX;
     state.prevY = touch.clientY;
     state.prevTime = now;
-    state.maxMovement = 0;
 
     engineRef.current?.setMousePosition(touch.clientX, touch.clientY, 1.0);
-    // Mechanic 3: touch counts as interaction → resets idle timer.
-    engineRef.current?.notifyInteraction();
 
     // Hold detection — ramp influence while finger stays still
     if (state.holdTimer) clearInterval(state.holdTimer);
@@ -129,42 +108,22 @@ export default function CosmosCanvas() {
     const dy = touch.clientY - state.prevY;
     const velocity = (Math.sqrt(dx * dx + dy * dy) / dt) * 1000;
 
-    // Track total displacement from touch origin so handleTouchEnd can
-    // decide tap-vs-drag for mechanic 5 (nova trigger).
-    const totalDx = touch.clientX - state.startX;
-    const totalDy = touch.clientY - state.startY;
-    const totalMove = Math.sqrt(totalDx * totalDx + totalDy * totalDy);
-    if (totalMove > state.maxMovement) state.maxMovement = totalMove;
-
     // Faster drag → stronger particle wake (1.0 → 2.5)
     const influence = 1.0 + Math.min(velocity / 800, 1.0) * 1.5;
     engineRef.current?.setMousePosition(touch.clientX, touch.clientY, influence);
-    // Mechanic 3: touch motion counts as interaction.
-    engineRef.current?.notifyInteraction();
 
     state.prevX = touch.clientX;
     state.prevY = touch.clientY;
     state.prevTime = now;
   }, []);
 
-  const handleTouchEnd = useCallback((e: TouchEvent) => {
+  const handleTouchEnd = useCallback(() => {
     const state = touchStateRef.current;
     if (state.holdTimer) {
       clearInterval(state.holdTimer);
       state.holdTimer = 0;
     }
     engineRef.current?.clearMouseInfluence();
-
-    // Mechanic 5: nova on a true tap (drag below threshold for the entire
-    // touch lifetime). Use the lifted-finger coords (changedTouches[0]) so the
-    // flare lands at the user's last known fingertip position. touchcancel
-    // can fire without changedTouches in some engines — fall back to start.
-    if (state.maxMovement <= DRAG_THRESHOLD_PX) {
-      const released = e.changedTouches?.[0];
-      const cx = released?.clientX ?? state.startX;
-      const cy = released?.clientY ?? state.startY;
-      engineRef.current?.triggerNova(cx, cy);
-    }
   }, []);
 
   /* ---- Device orientation: adaptive centering gyro ---- */
@@ -172,10 +131,6 @@ export default function CosmosCanvas() {
 
   const handleOrientation = useCallback((e: DeviceOrientationEvent) => {
     if (e.gamma == null || e.beta == null) return;
-
-    // Mirror raw reading into tilt-state singleton so HeroSection
-    // (and any other consumer) can read the latest orientation.
-    setTilt(e.beta, e.gamma);
 
     // Calibrate on first reading — user's current holding angle becomes center
     if (!gyroBaseRef.current) {
@@ -186,23 +141,15 @@ export default function CosmosCanvas() {
     const relativeGamma = e.gamma - base.gamma;
     const relativeBeta = e.beta - base.beta;
 
-    // Adaptive baseline drift — was 1%/reading (~half-life 1s at 60Hz),
-    // which absorbed user-held tilts almost instantly. 0.3% gives a
-    // ~4 s half-life: gentle posture-change tracking over tens of seconds
-    // without eating the user's intentional tilts.
-    base.beta += (e.beta - base.beta) * 0.003;
-    base.gamma += (e.gamma - base.gamma) * 0.003;
+    // Slow adaptive drift — baseline follows gradual posture changes (1% per reading)
+    base.beta += (e.beta - base.beta) * 0.01;
+    base.gamma += (e.gamma - base.gamma) * 0.01;
 
-    // Mechanic 4: tilt parallaxes the CAMERA, not the cursor. Map ±45° tilt
-    // to ±1 normalized offset; the engine clamps and scales by its tilt
-    // magnitude. The static star sky at z=-50..-80 visibly shifts more
-    // than the foreground particles thanks to perspective projection.
-    const xNorm = Math.max(-1, Math.min(1, relativeGamma / 45));
-    const yNorm = Math.max(-1, Math.min(1, relativeBeta / 45));
-    engineRef.current?.setTiltOffset(xNorm, yNorm);
+    // Map relative tilt to screen position (±45° range)
+    const nx = (relativeGamma / 45) * window.innerWidth * 0.5 + window.innerWidth / 2;
+    const ny = (relativeBeta / 45) * window.innerHeight * 0.5 + window.innerHeight / 2;
 
-    // Mechanic 3: any gyro reading counts as interaction.
-    engineRef.current?.notifyInteraction();
+    engineRef.current?.setMousePosition(nx, ny);
   }, []);
 
   /* ---- Resize handler ---- */
@@ -219,6 +166,19 @@ export default function CosmosCanvas() {
     const engine = new CosmosEngine(canvas);
     engineRef.current = engine;
 
+    // iOS requires DeviceOrientationEvent.requestPermission() inside
+    // a user gesture handler (touchstart/click). Hoist the handler so
+    // it can be cleaned up if the component unmounts before the gesture.
+    const requestGyro = async () => {
+      if (disposed) return;
+      const hasPermission = await requestOrientationPermission();
+      if (hasPermission && !disposed) {
+        window.addEventListener("deviceorientation", handleOrientation, {
+          passive: true,
+        });
+      }
+    };
+
     const bootstrap = async () => {
       try {
         await engine.init();
@@ -232,10 +192,6 @@ export default function CosmosCanvas() {
         // Attach event listeners after successful init
         window.addEventListener("mousemove", handleMouseMove, { passive: true });
         window.addEventListener("mouseleave", handleMouseLeave, { passive: true });
-        // Mechanic 5: click-nova requires mousedown + mouseup with no
-        // significant drag between them (DRAG_THRESHOLD_PX).
-        window.addEventListener("mousedown", handleMouseDown, { passive: true });
-        window.addEventListener("mouseup", handleMouseUp, { passive: true });
         window.addEventListener("resize", handleResize, { passive: true });
 
         // Touch interaction — hold for gravitational well, drag for velocity wake
@@ -244,10 +200,8 @@ export default function CosmosCanvas() {
         window.addEventListener("touchend", handleTouchEnd, { passive: true });
         window.addEventListener("touchcancel", handleTouchEnd, { passive: true });
 
-        // Device orientation listener registered unconditionally. On iOS
-        // without permission it stays silent until GyroPrompt grants it;
-        // on Android / desktop / iOS-with-permission it fires normally.
-        window.addEventListener("deviceorientation", handleOrientation, { passive: true });
+        // Attach one-shot touchstart listener for iOS gyroscope permission
+        window.addEventListener("touchstart", requestGyro, { once: true });
       } catch (err) {
         console.error("[CosmosCanvas] Failed to initialise engine:", err);
         setFailed(true);
@@ -261,8 +215,6 @@ export default function CosmosCanvas() {
 
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseleave", handleMouseLeave);
-      window.removeEventListener("mousedown", handleMouseDown);
-      window.removeEventListener("mouseup", handleMouseUp);
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("touchstart", handleTouchStart);
       window.removeEventListener("touchmove", handleTouchMove);
@@ -272,12 +224,13 @@ export default function CosmosCanvas() {
         clearInterval(touchStateRef.current.holdTimer);
       }
       window.removeEventListener("deviceorientation", handleOrientation);
+      window.removeEventListener("touchstart", requestGyro);
 
       setCosmosEngine(null);
       engine.dispose();
       engineRef.current = null;
     };
-  }, [handleMouseMove, handleMouseLeave, handleMouseDown, handleMouseUp, handleTouchStart, handleTouchMove, handleTouchEnd, handleOrientation, handleResize]);
+  }, [handleMouseMove, handleMouseLeave, handleTouchStart, handleTouchMove, handleTouchEnd, handleOrientation, handleResize]);
 
   if (failed) {
     return (

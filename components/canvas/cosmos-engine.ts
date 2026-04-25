@@ -14,7 +14,6 @@ import {
   WebGPURenderer,
   RenderPipeline,
   Color,
-  ACESFilmicToneMapping,
 } from "three/webgpu";
 
 import { pass } from "three/tsl";
@@ -29,7 +28,6 @@ import {
 } from "@/components/canvas/performance-monitor";
 
 import { ParticleSystem } from "./particle-system";
-import { createStarSky } from "./background-layers";
 
 /* ------------------------------------------------------------------ */
 /*  Engine                                                            */
@@ -58,66 +56,11 @@ export class CosmosEngine {
   private useGPUCompute = false;
   private _hasBloom = false;
 
-  /** Camera handheld drift state — gives the "I'm inside this" feel */
-  private _cameraBaseZ = 30;
-  private _reducedMotion = false;
-
-  /** Tilt parallax offset (mechanic 4) — gyro feeds normalized -1..1, scaled
-   *  into camera offset units in tick(). Separate from cursor influence so
-   *  device tilt doesn't conflate with pointer position. */
-  private _tiltOffsetX = 0;
-  private _tiltOffsetY = 0;
-  /** Smoothed tilt — lerped toward _tiltOffsetX/Y each tick so camera and
-   *  flow respond as a continuous glide rather than per-event jumps. */
-  private _smoothedTiltX = 0;
-  private _smoothedTiltY = 0;
-  /** Multiplier for tilt → camera offset (world units). 1.5 picked so a 45°
-   *  device tilt parallaxes the foreground by ±1.5 units while the static
-   *  star sky at z=-50..-80 visibly shifts more. */
-  private static readonly TILT_OFFSET_MAGNITUDE = 1.5;
-  /** Tilt-smoothing rate — 0.10 gives ~7-frame (~110ms) half-life: latency
-   *  imperceptible, jitter visibly smoothed. */
-  private static readonly TILT_SMOOTH_RATE = 0.10;
-
-  /** Stillness-reward state (mechanic 3) — track last interaction wallclock
-   *  in ms. Idle ramp begins after IDLE_THRESHOLD seconds, fully ramps over
-   *  IDLE_RAMP_SECONDS. */
-  private _lastInteractionMs = 0;
-  private _idleRamp = 0; // 0..1, smoothed every tick
-  private static readonly IDLE_THRESHOLD_SEC = 5.0;
-  private static readonly IDLE_RAMP_SEC = 2.0;
-  /** Default drift speed snapshot — restored when user returns to interacting. */
-  private _baseDriftSpeed: number = PARTICLE_CONFIG.driftSpeed;
-  /** Idle peak: drift speed boost (50% above default), and soft logo glow. */
-  private static readonly IDLE_DRIFT_PEAK = PARTICLE_CONFIG.driftSpeed * 1.5;
-  // Idle glow dropped 0.25 → 0.08 — was a perceptible warm pulse, now a
-  // breath. Stillness rewards the patient without lighting the eyes.
-  private static readonly IDLE_GLOW_PEAK = 0.08;
-
-  /** Latest cursor in client-space, kept so we can re-project to world coords
-   *  on every tick (camera drifts, so the projection drifts with it). */
-  private _lastClientX = -9999;
-  private _lastClientY = -9999;
-  private _hasPointerInput = false;
-
-  /** Smoothed scroll progress (mechanic: prevent mobile fling lurches). */
-  private _targetScrollProgress = 0;
-  private _smoothedScrollProgress = 0;
-
   private unsubscribeScroll: (() => void) | null = null;
 
   /** Public access for animation controllers (e.g. HeroSection GSAP timeline) */
   get particles(): ParticleSystem {
     return this.particleSystem;
-  }
-
-  /**
-   * Public access for components that need to project screen-space rects
-   * into world space (e.g. SiteSections coalescence projects each <h2>'s
-   * bounding rect onto the z=0 plane). Read-only — do not mutate.
-   */
-  get cameraRef(): PerspectiveCamera {
-    return this.camera;
   }
 
   constructor(canvas: HTMLCanvasElement) {
@@ -130,10 +73,6 @@ export class CosmosEngine {
 
   async init(): Promise<void> {
     this.gpuTier = await detectGPUTier();
-
-    // Capture motion preference once — gates camera drift, pulse animations.
-    this._reducedMotion = typeof window !== "undefined"
-      && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 
     // ---- Scene ----
     this.scene = new Scene();
@@ -161,39 +100,22 @@ export class CosmosEngine {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.width, this.height);
 
-    // HDR + ACES filmic tone mapping. Bright cluster centers + supernovae
-    // can now exceed nominal max-white and roll off cinematically through
-    // the ACES curve instead of clipping flat. Exposure tuned slightly above
-    // 1.0 for confident-bright cosmos without crushing highlights.
-    this.renderer.toneMapping = ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
-
     await this.renderer.init();
 
-    // ---- Background star sky ----
-    // Far-distance static stars give the active field depth parallax when
-    // the camera drifts. The nebula billboards experiment was removed —
-    // 5 fixed colored sprites read as "lamps in space," not as atmosphere.
-    // Atmospheric depth is being deferred to a noise-based approach later.
-    const skyDensity = this.gpuTier.tier === "high" ? 5000
-                     : this.gpuTier.tier === "medium" ? 3000
-                     : 1500;
-    this.scene.add(createStarSky(skyDensity));
-
-    // ---- Active particle system ----
+    // ---- Particle System ----
     const maxParticles = this.gpuTier.maxParticles;
     this.particleSystem = new ParticleSystem(maxParticles);
     this.scene.add(this.particleSystem.group);
 
     // ---- Detect compute capability ----
-    // Try a single compute dispatch on every backend. Three.js TSL transparently
-    // emulates compute on WebGL2 via fragment-shader render-to-texture when the
-    // backend is WebGL2. If it throws (truly ancient device), we fall back to
-    // the CPU animate path as last resort.
+    // Try compute on every backend. Three.js TSL transparently emulates
+    // compute() on WebGL2 via fragment-shader render-to-texture, so the
+    // gate that previously routed WebGL2 to CPU animation was leaving GPU
+    // throughput on the table. CPU path stays as catastrophic last-resort.
     try {
       this.renderer.compute(this.particleSystem.computeUpdate);
       this.useGPUCompute = true;
-      console.log(`[CosmosEngine] GPU compute available ✓  backend=${this.gpuTier.renderer}`);
+      console.log(`[CosmosEngine] GPU compute available ✓ backend=${this.gpuTier.renderer}`);
     } catch (e) {
       this.useGPUCompute = false;
       console.warn(`[CosmosEngine] GPU compute unavailable on ${this.gpuTier.renderer}, falling back to CPU:`, e);
@@ -219,11 +141,13 @@ export class CosmosEngine {
       this.particleSystem.setNoBloom();
     }
 
-    console.log(
-      `[CosmosEngine] Init: tier=${this.gpuTier.tier} backend=${this.gpuTier.renderer} ` +
-      `particles=${initialCount}/${maxParticles} bloom=${!!this.renderPipeline} ` +
-      `compute=${this.useGPUCompute}`,
-    );
+    console.log("[CosmosEngine] Initialized:", {
+      gpuTier: this.gpuTier,
+      initialParticles: initialCount,
+      maxParticles,
+      hasBloom: !!this.renderPipeline,
+      useGPUCompute: this.useGPUCompute,
+    });
 
     // ---- Performance Monitor ----
     const perfConfig: PerformanceMonitorConfig = this.useGPUCompute
@@ -249,32 +173,9 @@ export class CosmosEngine {
     this.performanceMonitor = new PerformanceMonitor(perfConfig);
 
     // ---- Scroll subscription ----
-    // Capture target only; the engine tick smooths and applies it (prevents
-    // mobile inertial-fling spikes from slingshotting the field).
     this.unsubscribeScroll = onScrollUpdate((progress) => {
-      this._targetScrollProgress = progress;
+      this.particleSystem.setScrollProgress(progress);
     });
-
-    // ---- Time-of-day palette shift (mechanic 6) ----
-    // Read local hour ONCE at init — perceptual nudge, not a live clock.
-    // Mapping (24h):
-    //   06–10  dawn    → moderate warm (cream)
-    //   10–17  midday  → near-zero (default palette)
-    //   17–21  evening → strong warm (cream)
-    //   21–06  night   → strong cool (saturated blue) + moderate purple
-    const hour = new Date().getHours();
-    let warm = 0, cool = 0, purple = 0;
-    if (hour >= 6 && hour < 10)        { warm = 0.55; }            // dawn
-    else if (hour >= 10 && hour < 17)  { warm = 0.0; cool = 0.0; } // midday — default
-    else if (hour >= 17 && hour < 21)  { warm = 0.85; }            // evening
-    else                               { cool = 0.85; purple = 0.45; } // night
-    this.particleSystem.setTimeOfDay(warm, cool, purple);
-
-    // ---- Initialize last-interaction wallclock so idle reward (mechanic 3)
-    // starts counting from init, not from epoch 0. Snapshot baseline drift
-    // for symmetric ease-back when the user returns from idle.
-    this._lastInteractionMs = performance.now();
-    this._baseDriftSpeed = PARTICLE_CONFIG.driftSpeed;
   }
 
   /* ---------------------------------------------------------------- */
@@ -284,10 +185,7 @@ export class CosmosEngine {
   private setupRenderPipeline(): void {
     try {
       const scenePass = pass(this.scene, this.camera);
-      // Bloom strength dropped hard 0.25 → 0.04, threshold raised 0.1 → 0.4
-      // so only true peak events bloom and the bloom is barely-there velvet,
-      // not a halo bath over everything.
-      const bloomPass = bloom(scenePass, 0.04, 0.5, 0.4);
+      const bloomPass = bloom(scenePass, 0.25, 0.3, 0.1);
       const outputNode = scenePass.add(bloomPass);
 
       this.renderPipeline = new RenderPipeline(this.renderer, outputNode);
@@ -328,131 +226,15 @@ export class CosmosEngine {
     const deltaTime = Math.min(time - (this.lastTime - this.startTime), 0.05);
     this.lastTime = now / 1000;
 
-    // ---- FPS sample (logged via getStats; no longer drives particle count) ----
-    // PerformanceMonitor was previously cutting particle count when FPS dipped.
-    // That caused visible cliff-drops mid-scene and assumed weak hardware that
-    // isn't our target audience. Removed — particle count is now set once at
-    // init and stays there.
+    // ---- Performance monitoring & adaptive quality ----
     this.performanceMonitor.recordFrame(now);
-
-    // ---- Smooth scrollProgress (mobile fling can spike progress) ----
-    // Lerp the actually-applied scroll value toward the latest reported
-    // progress at ~6% per frame ≈ 270 ms half-life. Without this, inertial
-    // scroll on phones causes outward radial force to ramp instantly,
-    // which reads as the field "lurching."
-    if (this._smoothedScrollProgress !== this._targetScrollProgress) {
-      const k = 0.06;
-      this._smoothedScrollProgress += (this._targetScrollProgress - this._smoothedScrollProgress) * k;
-      // Snap when close enough to avoid micro-jitter.
-      if (Math.abs(this._targetScrollProgress - this._smoothedScrollProgress) < 0.001) {
-        this._smoothedScrollProgress = this._targetScrollProgress;
-      }
-      this.particleSystem.setScrollProgress(this._smoothedScrollProgress);
+    const targetCount = this.performanceMonitor.getParticleCount();
+    if (targetCount !== this.particleSystem.getParticleCount()) {
+      this.particleSystem.setParticleCount(targetCount);
     }
 
     // ---- Update uniforms ----
     this.particleSystem.update(time, deltaTime);
-
-    // ---- Stillness reward (mechanic 3) ----
-    // Compute idle target (0 active, 1 fully idle), then ease toward it with
-    // a smoothing factor derived from deltaTime. The 2-second ramp is achieved
-    // by approximating exp(-dt/τ) where τ = IDLE_RAMP_SEC/3 (≈3τ ≈ 95% there).
-    const idleSeconds = (now - this._lastInteractionMs) / 1000;
-    const idleTarget = idleSeconds > CosmosEngine.IDLE_THRESHOLD_SEC ? 1 : 0;
-    // Smoothing constant tuned so transitions complete in ~IDLE_RAMP_SEC
-    const idleSmoothing = 1 - Math.exp(-deltaTime / (CosmosEngine.IDLE_RAMP_SEC / 3));
-    this._idleRamp += (idleTarget - this._idleRamp) * idleSmoothing;
-
-    // Apply ramped drift speed (skip under reduced-motion: spec says only the
-    // soft glow should run when motion is reduced).
-    if (!this._reducedMotion) {
-      const driftSpeed =
-        this._baseDriftSpeed
-        + (CosmosEngine.IDLE_DRIFT_PEAK - this._baseDriftSpeed) * this._idleRamp;
-      this.particleSystem.setDriftSpeed(driftSpeed);
-    }
-
-    // Compose the final logoGlow uniform from three sources:
-    //   - external (GSAP timelines: HeroSection genesis pulse, ambient pulses,
-    //     SiteSections coalescence) — read via getExternalLogoGlow()
-    //   - idle (mechanic 3, soft "distant structures assemble" glow)
-    //   - nova (mechanic 5, click/tap flare)
-    // We take max() so the strongest source wins; this preserves the genesis
-    // sequence's full ignition pulse (1.0) without idle/nova diluting it, and
-    // also lets a nova override a quiescent baseline. We write the composed
-    // value via applyComposedLogoGlow which doesn't touch the external field
-    // — preserves whatever GSAP last set as source-of-truth.
-    const externalGlow = this.particleSystem.getExternalLogoGlow();
-    const idleGlow = CosmosEngine.IDLE_GLOW_PEAK * this._idleRamp;
-    const novaGlow = this.particleSystem.getNovaGlow();
-    this.particleSystem.applyComposedLogoGlow(
-      Math.max(externalGlow, idleGlow, novaGlow),
-    );
-
-    // ---- Camera handheld drift + tilt parallax (mechanic 4) ----
-    // Two layered low-frequency oscillators per axis create breathing,
-    // non-repeating motion that sells "I'm inside this" without inducing
-    // motion sickness. Skipped under prefers-reduced-motion.
-    // Tilt offset (from gyro) is added on top so the camera parallaxes with
-    // device orientation. The static star sky at z=-50..-80 visibly shifts
-    // more than the active particles at z≈0 thanks to perspective projection.
-    let driftX = 0, driftY = 0, driftZ = 0;
-    if (!this._reducedMotion) {
-      const t = time;
-      const ampXY = 0.45;
-      const ampZ = 0.30;
-      driftX = (Math.sin(t * 0.13) * 0.7 + Math.sin(t * 0.31) * 0.3) * ampXY;
-      driftY = (Math.cos(t * 0.11) * 0.7 + Math.sin(t * 0.27) * 0.3) * ampXY * 0.8;
-      driftZ = (Math.cos(t * 0.09) * 0.6 + Math.sin(t * 0.21) * 0.4) * ampZ;
-    }
-    // Smooth the applied tilt toward the latest reading. This makes camera
-    // and flow respond as a continuous glide rather than per-event jumps,
-    // which sells "buttery smooth" instead of "step → step → step."
-    this._smoothedTiltX += (this._tiltOffsetX - this._smoothedTiltX) * CosmosEngine.TILT_SMOOTH_RATE;
-    this._smoothedTiltY += (this._tiltOffsetY - this._smoothedTiltY) * CosmosEngine.TILT_SMOOTH_RATE;
-    const tiltX = this._smoothedTiltX * CosmosEngine.TILT_OFFSET_MAGNITUDE;
-    const tiltY = this._smoothedTiltY * CosmosEngine.TILT_OFFSET_MAGNITUDE;
-    this.camera.position.set(
-      driftX + tiltX,
-      driftY + tiltY,
-      this._cameraBaseZ + driftZ,
-    );
-    this.camera.lookAt(0, 0, 0);
-
-    // Tilt also biases the curl-noise flow field via uTiltX/uTiltY uniforms
-    // — the field continuously drifts in the direction the user is tilting.
-    // This is the "the flow should change" piece: holding tilt = sustained
-    // directional flow, not just a one-time camera shift.
-    this.particleSystem.setTiltFlow(this._smoothedTiltX, this._smoothedTiltY);
-
-    // Slow global rotation around Y — gives the cosmos a sense of "we're
-    // drifting through space" rather than looking at a static field.
-    // 0.04 rad/sec ≈ a full turn every 2.6 minutes. Below conscious detection
-    // but the eye picks it up subliminally as "this is alive and moving."
-    // Skipped under prefers-reduced-motion.
-    if (!this._reducedMotion) {
-      this.particleSystem.group.rotation.y = time * 0.04;
-    }
-
-    // ---- Pointer halo re-projection (mechanic 2) + nova flare (mechanic 5)
-    // Project the last cursor position into world space every tick. We must
-    // re-project because the camera drifts; the halo would slide off the
-    // particles otherwise.
-    //
-    // While a nova flare is active (just after a click/tap), anchor the halo
-    // at the click point — it fades back to the cursor's position once the
-    // nova decays to 0 (≈1s). The cursor itself doesn't move during this
-    // window in any meaningful way; the flare just visibly takes over.
-    const nova = this.particleSystem.getNovaHalo();
-    if (nova.strength > 0) {
-      this.particleSystem.setPointerWorldPosition(nova.x, nova.y, nova.strength);
-    } else if (this._hasPointerInput) {
-      const projected = this.projectClientToWorld(this._lastClientX, this._lastClientY);
-      this.particleSystem.setPointerWorldPosition(projected.x, projected.y, 1.0);
-    } else {
-      // No cursor, no nova — make sure halo is fully off.
-      this.particleSystem.setPointerWorldPosition(0, 0, 0);
-    }
 
     // ---- Animate particles (GPU compute or CPU fallback) ----
     if (this.useGPUCompute) {
@@ -484,75 +266,24 @@ export class CosmosEngine {
   /*  Mouse interaction                                               */
   /* ---------------------------------------------------------------- */
 
-  /**
-   * Project a client-space (clientX, clientY) onto the z=0 world plane,
-   * accounting for the current camera position. Used both for the curl-noise
-   * mouse force and the pointer-halo position (mechanic 2).
-   */
-  private projectClientToWorld(clientX: number, clientY: number): { x: number; y: number } {
+  setMousePosition(clientX: number, clientY: number, influence = 1.0): void {
+    if (!this.camera) return;
+
     const ndcX = (clientX / this.width) * 2 - 1;
     const ndcY = -(clientY / this.height) * 2 + 1;
 
     const fovRad = (this.camera.fov * Math.PI) / 180;
-    // Distance from camera to z=0 plane (camera looks at origin, so this is
-    // just the camera's z position; z drifts ±0.3 with handheld breathing).
     const halfHeight = Math.tan(fovRad / 2) * this.camera.position.z;
     const halfWidth = halfHeight * this.camera.aspect;
 
-    return { x: ndcX * halfWidth, y: ndcY * halfHeight };
-  }
+    const worldX = ndcX * halfWidth;
+    const worldY = ndcY * halfHeight;
 
-  setMousePosition(clientX: number, clientY: number, influence = 1.0): void {
-    if (!this.camera) return;
-
-    // Track latest client coords for tick-time re-projection (camera drifts).
-    this._lastClientX = clientX;
-    this._lastClientY = clientY;
-    this._hasPointerInput = true;
-
-    const projected = this.projectClientToWorld(clientX, clientY);
-    this.particleSystem.setMousePosition(projected.x, projected.y, influence);
-    // Mechanic 2 (pointer halo) is updated by the engine tick — it handles
-    // camera-drift re-projection plus nova-flare composition. We only flag
-    // _hasPointerInput here so the tick knows there's an active cursor.
+    this.particleSystem.setMousePosition(worldX, worldY, influence);
   }
 
   clearMouseInfluence(): void {
-    this._hasPointerInput = false;
     this.particleSystem.setMousePosition(0, 0, 0);
-    // Halo is faded by the tick loop on the next frame (no nova → no
-    // pointer → set strength to 0).
-  }
-
-  /**
-   * Tilt parallax (mechanic 4). xNorm/yNorm are -1..1, typically derived from
-   * device orientation gamma/beta. Stored and applied in tick() on top of the
-   * existing handheld camera drift.
-   */
-  setTiltOffset(xNorm: number, yNorm: number): void {
-    this._tiltOffsetX = Math.max(-1, Math.min(1, xNorm));
-    this._tiltOffsetY = Math.max(-1, Math.min(1, yNorm));
-  }
-
-  /**
-   * Stillness-reward bookkeeping (mechanic 3). The CosmosCanvas DOM event
-   * handlers should call this on mouse move / touch / gyro events; the tick
-   * loop reads the timestamp to determine idle duration.
-   */
-  notifyInteraction(): void {
-    this._lastInteractionMs = performance.now();
-  }
-
-  /**
-   * Trigger a tap/click "nova" pulse (mechanic 5). Forwards to
-   * particleSystem.triggerNova with the engine's reduced-motion preference.
-   * The (clientX, clientY) is projected to world coordinates so the halo
-   * flare lands at the click point, not the world origin.
-   */
-  triggerNova(clientX: number, clientY: number): void {
-    if (!this.camera || !this.particleSystem) return;
-    const projected = this.projectClientToWorld(clientX, clientY);
-    this.particleSystem.triggerNova(projected.x, projected.y, this._reducedMotion);
   }
 
   /* ---------------------------------------------------------------- */

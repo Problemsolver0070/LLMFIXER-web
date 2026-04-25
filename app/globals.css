@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ------------------------------------------------------------------ */
-/*  Cosmos palette                                                     */
+/*  Cosmos palette — original                                          */
 /* ------------------------------------------------------------------ */
 :root {
   --cosmos-void:      #0A0E1A;
@@ -11,8 +11,8 @@
   --celestial-dim:    #8B95B0;
   --ethereal-blue:    #4A7BF7;
   --ethereal-glow:    #6BB8FF;
-  --warm-cream:       #F0E0BC;
-  --warm-tan:         #C8B89A;
+  --gold-warm:        #D4A853;
+  --gold-bright:      #F0C45A;
 }
 
 @theme inline {
@@ -27,27 +27,6 @@ html, body {
   margin: 0;
   min-height: 100%;
   overscroll-behavior: none;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Cosmos atmospheric backdrop                                        */
-/* ------------------------------------------------------------------ */
-/* Atmospheric backdrop — slammed down hard for the ASMR pass.            */
-/* Was a noticeable bright wash; now a barely-perceptible gravity well   */
-/* of subtle depth at the focal point. Whisper, not shout.               */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(
-      ellipse 60% 50% at 50% 45%,
-      oklch(0.16 0.04 265 / 0.18) 0%,
-      oklch(0.12 0.02 265 / 0.06) 50%,
-      transparent 100%
-    );
 }
 
 /* ------------------------------------------------------------------ */
@@ -95,7 +74,6 @@ body::before {
   }
 }
 
-/* Reduced motion respect */
 @media (prefers-reduced-motion: reduce) {
   .cosmos-canvas {
     animation: none;

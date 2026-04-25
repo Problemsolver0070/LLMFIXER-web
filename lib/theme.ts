@@ -35,11 +35,11 @@ export const COLORS = {
 
 export const PARTICLE_CONFIG = {
   maxParticles: 500_000,
-  // Both baselines reduced ~30% per user feedback — the field reads
-  // less "dirt-like" with fewer particles now that each is more visible
-  // (post brightness boost) and the size dynamic range is tighter.
-  mobileBaseline: 56_000,
-  desktopBaseline: 140_000,
+  // Successive -30% reductions: 200K → 140K → 98K (desktop), 80K → 56K → 39K
+  // (mobile). With brighter per-particle alpha + larger small-class scaling,
+  // fewer atoms read as more cohesive than more atoms did before.
+  mobileBaseline: 39_000,
+  desktopBaseline: 98_000,
   minFps: 55,
   targetFps: 60,
   adjustmentInterval: 30,

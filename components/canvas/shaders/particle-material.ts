@@ -242,15 +242,18 @@ export function createParticleMaterial(
   // Velocity-based size boost — fast particles stretch larger (trail effect)
   const velocityScale = add(float(1.0), mul(speed.div(float(4.0)), float(0.5)));
 
-  // ---- Class-based size scaling (star=1×, dust=1.6×, nebula=4×, supernova=8×) ----
-  // Nested mix gates ensure highest matching type's modifier wins.
+  // ---- Class-based size scaling ----
+  // Tightened dynamic range from 1×→8× (8:1) to 2×→4× (2:1) per
+  // user feedback: small "dust-like" particles doubled in size, big
+  // bright particles halved. Less variance, less competing-for-attention.
+  // star=2×, dust=2.5×, nebula=3.5×, supernova=4×.
   const classScale = mix(
     mix(
-      mix(float(1.0), float(1.6), isAtLeastDust),
-      float(4.0),
+      mix(float(2.0), float(2.5), isAtLeastDust),
+      float(3.5),
       isAtLeastNebula,
     ),
-    float(8.0),
+    float(4.0),
     isAtLeastSupernova,
   );
 

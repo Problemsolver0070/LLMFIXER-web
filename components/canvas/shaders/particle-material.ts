@@ -69,6 +69,7 @@ const oxygenTeal = new Color(COLORS.oxygenTeal);
 export function createParticleMaterial(
   posBuffer: StorageInstancedBufferAttribute,
   velBuffer: StorageInstancedBufferAttribute,
+  typeBuffer: StorageInstancedBufferAttribute,
 ) {
   const material = new SpriteNodeMaterial();
   material.transparent = true;
@@ -83,6 +84,14 @@ export function createParticleMaterial(
   const velStorage = storage(velBuffer, "vec3", velBuffer.count);
   const vel = velStorage.element(instanceIndex);
   const speed = clamp(length(vel), float(0), float(4.0));
+
+  // Per-particle class id (0=star, 1=dust, 2=nebula, 3=supernova).
+  // step()-chained gates let the highest matching type's modifier win.
+  const typeStorage = storage(typeBuffer, "float", typeBuffer.count);
+  const ptype = typeStorage.element(instanceIndex);
+  const isAtLeastDust      = step(float(0.5), ptype);
+  const isAtLeastNebula    = step(float(1.5), ptype);
+  const isAtLeastSupernova = step(float(2.5), ptype);
 
   // Per-particle deterministic randomness
   const particleHash = hash(instanceIndex);
@@ -116,6 +125,10 @@ export function createParticleMaterial(
     clamp(uMatLogoGlow, float(0), float(1)),
   );
 
+  // ---- Supernovae always read as hot white regardless of species ----
+  const supernovaColor = vec3(1.0, 0.96, 0.88);
+  const classedColor = mix(logoColor, supernovaColor, isAtLeastSupernova);
+
   // ---- Breathing / pulsing brightness ----
   const breathPhase = add(uMatTime.mul(0.5), particleHash.mul(6.2831));
   const breathFactor = add(float(0.8), mul(sin(breathPhase), float(0.2)));
@@ -133,6 +146,19 @@ export function createParticleMaterial(
   const distanceFade = smoothstep(float(30), float(18), dist);
   const centerBoost = smoothstep(float(0), float(6), dist);
 
+  // ---- Class-based alpha modifier ----
+  // dust = much fainter (large blurry), nebula = even fainter (atmospheric),
+  // supernova = brighter punch.
+  const classAlpha = mix(
+    mix(
+      mix(float(1.0), float(0.40), isAtLeastDust),
+      float(0.18),
+      isAtLeastNebula,
+    ),
+    float(1.6),
+    isAtLeastSupernova,
+  );
+
   // ---- Final opacity (low per-particle — additive blending accumulates) ----
   const baseAlpha = mul(
     float(0.12),
@@ -140,6 +166,7 @@ export function createParticleMaterial(
     twinkleFactor,
     distanceFade,
     mix(float(0.4), float(1.0), centerBoost),
+    classAlpha,
   );
   // Boost brightness when bloom is absent (bloom normally amplifies additive glow)
   const bloomCompensation = mix(float(1.0), float(2.5), uNoBloom);
@@ -159,7 +186,20 @@ export function createParticleMaterial(
   );
   // Velocity-based size boost — fast particles stretch larger (trail effect)
   const velocityScale = add(float(1.0), mul(speed.div(float(4.0)), float(0.5)));
-  const particleScale = mul(uMatParticleSize, scaleBreath, velocityScale);
+
+  // ---- Class-based size scaling (star=1×, dust=1.6×, nebula=4×, supernova=8×) ----
+  // Nested mix gates ensure highest matching type's modifier wins.
+  const classScale = mix(
+    mix(
+      mix(float(1.0), float(1.6), isAtLeastDust),
+      float(4.0),
+      isAtLeastNebula,
+    ),
+    float(8.0),
+    isAtLeastSupernova,
+  );
+
+  const particleScale = mul(uMatParticleSize, scaleBreath, velocityScale, classScale);
 
   // Velocity-based alpha boost — fast particles glow brighter (trail luminance)
   const velocityAlpha = mul(speed.div(float(4.0)), float(0.05));
@@ -172,8 +212,8 @@ export function createParticleMaterial(
     maxGlowAlpha,
   );
 
-  // Assign to material
-  material.colorNode = vec4(logoColor, glowAlpha);
+  // Assign to material — classedColor folds in the supernova-white override
+  material.colorNode = vec4(classedColor, glowAlpha);
   material.scaleNode = vec3(particleScale, particleScale, particleScale);
 
   return material;

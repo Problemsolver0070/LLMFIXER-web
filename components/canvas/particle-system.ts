@@ -76,6 +76,8 @@ export class ParticleSystem {
   private posBuffer: StorageInstancedBufferAttribute;
   private velBuffer: StorageInstancedBufferAttribute;
   private targetBuffer: StorageInstancedBufferAttribute;
+  /** Per-particle class id (encoded as float). 0=star, 1=dust, 2=nebula, 3=supernova */
+  private typeBuffer: StorageInstancedBufferAttribute;
 
   /** GPU compute kernel (WebGPU only) */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -122,8 +124,15 @@ export class ParticleSystem {
       4, // vec4
     );
 
-    // ---- Initialize positions on CPU (works for both WebGPU & WebGL2) ----
+    // float: per-particle class id. Drives size/alpha/color branching in shader.
+    this.typeBuffer = new StorageInstancedBufferAttribute(
+      this.maxParticles,
+      1, // single float
+    );
+
+    // ---- Initialize positions + types on CPU (works for both WebGPU & WebGL2) ----
     this.initPositions();
+    this.initTypes();
 
     // ---- Build compute shader (creates storage nodes) ----
     const { computeUpdate } = createParticleComputeShader(
@@ -133,8 +142,8 @@ export class ParticleSystem {
     );
     this.computeUpdate = computeUpdate;
 
-    // ---- Build material (creates storage nodes for pos + vel buffers) ----
-    this.material = createParticleMaterial(this.posBuffer, this.velBuffer);
+    // ---- Build material (creates storage nodes for pos + vel + type buffers) ----
+    this.material = createParticleMaterial(this.posBuffer, this.velBuffer, this.typeBuffer);
 
     // ---- Build renderable sprite ----
     this.group = new Group();
@@ -154,6 +163,30 @@ export class ParticleSystem {
   /* ---------------------------------------------------------------- */
   /*  CPU position initialization (spherical distribution)            */
   /* ---------------------------------------------------------------- */
+
+  /* ---------------------------------------------------------------- */
+  /*  Per-particle class assignment                                   */
+  /* ---------------------------------------------------------------- */
+  /**
+   * Distribute particle types deterministically across the population.
+   *  - 70% star      (sharp small bright)
+   *  - 22% dust      (faint diffuse)
+   *  - 7%  nebula    (large soft glow)
+   *  - 1%  supernova (rare bright with halo)
+   */
+  private initTypes(): void {
+    const types = this.typeBuffer.array as Float32Array;
+    for (let i = 0; i < this.maxParticles; i++) {
+      const r = Math.random();
+      let t: number;
+      if (r < 0.70)        t = 0.0; // star
+      else if (r < 0.92)   t = 1.0; // dust
+      else if (r < 0.99)   t = 2.0; // nebula
+      else                 t = 3.0; // supernova
+      types[i] = t;
+    }
+    this.typeBuffer.needsUpdate = true;
+  }
 
   private initPositions(): void {
     const posArray = this.posBuffer.array as Float32Array;

@@ -35,15 +35,20 @@ export const COLORS = {
 
 export const PARTICLE_CONFIG = {
   maxParticles: 500_000,
-  // Successive -30% reductions: 200K → 140K → 98K (desktop), 80K → 56K → 39K
-  // (mobile). With brighter per-particle alpha + larger small-class scaling,
-  // fewer atoms read as more cohesive than more atoms did before.
-  mobileBaseline: 39_000,
-  desktopBaseline: 98_000,
+  // Counts further reduced because each particle is now ~2.2× larger on
+  // screen (particleSize bumped 0.045 → 0.10) so the per-atom procedural
+  // glow + halo + spikes have room to render properly. Larger atoms +
+  // fewer of them = ASMR feel; smaller + more of them = dirt feel.
+  mobileBaseline: 24_000,
+  desktopBaseline: 60_000,
   minFps: 55,
   targetFps: 60,
   adjustmentInterval: 30,
-  particleSize: 0.045,
+  // Base particle size in world units. At z=30 camera distance + 60° FOV,
+  // 0.10 world units ≈ 5 screen pixels at typical 800-1000px viewport.
+  // That's the floor where a soft-edged halo + bright core + diffraction
+  // spikes are actually distinguishable per-particle.
+  particleSize: 0.10,
   driftSpeed: 1.2,
 } as const;
 

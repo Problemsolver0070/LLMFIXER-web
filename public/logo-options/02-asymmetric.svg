@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <radialGradient id="centerB" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="18%" stop-color="#F0C45A"/>
+      <stop offset="60%" stop-color="#D4A853" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#D4A853" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="satB1" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#E8ECF5"/>
+      <stop offset="45%" stop-color="#6BB8FF" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#4A7BF7" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="satB2" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="35%" stop-color="#F0C45A" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#D4A853" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="200" height="200" fill="#0A0E1A"/>
+  <!-- 6 satellites, varied distance, no connecting lines, one alpha (gold) -->
+  <!-- alpha: closer, brighter, gold -->
+  <circle cx="148" cy="62" r="18" fill="url(#satB2)"/>
+  <circle cx="148" cy="62" r="3.2" fill="#F0C45A"/>
+  <!-- others: blue tinted -->
+  <circle cx="62" cy="58" r="13" fill="url(#satB1)"/>
+  <circle cx="62" cy="58" r="2" fill="#E8ECF5"/>
+  <circle cx="38" cy="118" r="11" fill="url(#satB1)"/>
+  <circle cx="38" cy="118" r="1.6" fill="#E8ECF5"/>
+  <circle cx="92" cy="172" r="14" fill="url(#satB1)"/>
+  <circle cx="92" cy="172" r="2.2" fill="#E8ECF5"/>
+  <circle cx="166" cy="138" r="10" fill="url(#satB1)"/>
+  <circle cx="166" cy="138" r="1.5" fill="#E8ECF5"/>
+  <circle cx="134" cy="34" r="9" fill="url(#satB1)"/>
+  <circle cx="134" cy="34" r="1.4" fill="#E8ECF5"/>
+  <!-- Central focal star -->
+  <circle cx="100" cy="100" r="44" fill="url(#centerB)"/>
+  <circle cx="100" cy="100" r="5.5" fill="#F0C45A"/>
+  <circle cx="100" cy="100" r="2" fill="#FFFFFF"/>
+</svg>

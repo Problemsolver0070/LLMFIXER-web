@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <radialGradient id="centerA" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="20%" stop-color="#F0C45A"/>
+      <stop offset="55%" stop-color="#D4A853" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#D4A853" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="satA" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#E8ECF5"/>
+      <stop offset="40%" stop-color="#6BB8FF" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#4A7BF7" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="200" height="200" fill="#0A0E1A"/>
+  <!-- Faint connecting lines, 5 spokes -->
+  <g stroke="#4A7BF7" stroke-width="0.6" opacity="0.35" stroke-linecap="round">
+    <line x1="100" y1="100" x2="100" y2="42"/>
+    <line x1="100" y1="100" x2="155" y2="82"/>
+    <line x1="100" y1="100" x2="134" y2="148"/>
+    <line x1="100" y1="100" x2="66" y2="148"/>
+    <line x1="100" y1="100" x2="45" y2="82"/>
+  </g>
+  <!-- Satellite halos -->
+  <circle cx="100" cy="42" r="14" fill="url(#satA)"/>
+  <circle cx="155" cy="82" r="14" fill="url(#satA)"/>
+  <circle cx="134" cy="148" r="14" fill="url(#satA)"/>
+  <circle cx="66" cy="148" r="14" fill="url(#satA)"/>
+  <circle cx="45" cy="82" r="14" fill="url(#satA)"/>
+  <!-- Satellite cores -->
+  <circle cx="100" cy="42" r="2.2" fill="#E8ECF5"/>
+  <circle cx="155" cy="82" r="2.2" fill="#E8ECF5"/>
+  <circle cx="134" cy="148" r="2.2" fill="#E8ECF5"/>
+  <circle cx="66" cy="148" r="2.2" fill="#E8ECF5"/>
+  <circle cx="45" cy="82" r="2.2" fill="#E8ECF5"/>
+  <!-- Central focal star -->
+  <circle cx="100" cy="100" r="42" fill="url(#centerA)"/>
+  <circle cx="100" cy="100" r="5" fill="#F0C45A"/>
+  <circle cx="100" cy="100" r="1.8" fill="#FFFFFF"/>
+</svg>

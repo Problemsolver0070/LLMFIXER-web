@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <radialGradient id="centerC" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="22%" stop-color="#F0C45A"/>
+      <stop offset="60%" stop-color="#D4A853" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#D4A853" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="satC" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#E8ECF5"/>
+      <stop offset="50%" stop-color="#6BB8FF" stop-opacity="0.65"/>
+      <stop offset="100%" stop-color="#4A7BF7" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="200" height="200" fill="#0A0E1A"/>
+  <!-- Constellation lines (curved, drawn) -->
+  <g fill="none" stroke="#6BB8FF" stroke-width="0.7" opacity="0.55" stroke-linecap="round">
+    <!-- Inter-satellite lines forming a polygon-ish constellation -->
+    <path d="M 100 38 Q 130 50 158 78"/>
+    <path d="M 158 78 Q 168 120 138 156"/>
+    <path d="M 138 156 Q 100 168 62 156"/>
+    <path d="M 62 156 Q 32 120 42 78"/>
+    <path d="M 42 78 Q 70 50 100 38"/>
+    <!-- Center to satellites -->
+    <path d="M 100 100 L 100 38" opacity="0.4"/>
+    <path d="M 100 100 L 158 78" opacity="0.4"/>
+    <path d="M 100 100 L 138 156" opacity="0.4"/>
+    <path d="M 100 100 L 62 156" opacity="0.4"/>
+    <path d="M 100 100 L 42 78" opacity="0.4"/>
+  </g>
+  <!-- Satellites (5, halos + cores) -->
+  <circle cx="100" cy="38" r="11" fill="url(#satC)"/>
+  <circle cx="158" cy="78" r="11" fill="url(#satC)"/>
+  <circle cx="138" cy="156" r="11" fill="url(#satC)"/>
+  <circle cx="62" cy="156" r="11" fill="url(#satC)"/>
+  <circle cx="42" cy="78" r="11" fill="url(#satC)"/>
+  <circle cx="100" cy="38" r="2" fill="#E8ECF5"/>
+  <circle cx="158" cy="78" r="2" fill="#E8ECF5"/>
+  <circle cx="138" cy="156" r="2" fill="#E8ECF5"/>
+  <circle cx="62" cy="156" r="2" fill="#E8ECF5"/>
+  <circle cx="42" cy="78" r="2" fill="#E8ECF5"/>
+  <!-- Center -->
+  <circle cx="100" cy="100" r="36" fill="url(#centerC)"/>
+  <circle cx="100" cy="100" r="4.5" fill="#F0C45A"/>
+  <circle cx="100" cy="100" r="1.6" fill="#FFFFFF"/>
+</svg>

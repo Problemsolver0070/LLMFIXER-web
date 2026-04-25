@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <radialGradient id="centerD" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="20%" stop-color="#F0C45A"/>
+      <stop offset="55%" stop-color="#D4A853" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#D4A853" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="satDsmall" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#E8ECF5"/>
+      <stop offset="60%" stop-color="#6BB8FF" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#4A7BF7" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="satDalpha" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="35%" stop-color="#F0C45A"/>
+      <stop offset="100%" stop-color="#D4A853" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="200" height="200" fill="#0A0E1A"/>
+  <!-- Faint orbital ring -->
+  <circle cx="100" cy="100" r="62" fill="none" stroke="#4A7BF7" stroke-width="0.5" opacity="0.2"/>
+  <!-- 8 satellites in a perfect circle, one (top) is the alpha -->
+  <!-- Positions: 8 points at 45° intervals, radius 62 -->
+  <circle cx="100" cy="38" r="14" fill="url(#satDalpha)"/>
+  <circle cx="100" cy="38" r="3" fill="#F0C45A"/>
+  <circle cx="100" cy="38" r="1" fill="#FFFFFF"/>
+  <circle cx="143.84" cy="56.16" r="8" fill="url(#satDsmall)"/>
+  <circle cx="143.84" cy="56.16" r="1.5" fill="#E8ECF5"/>
+  <circle cx="162" cy="100" r="8" fill="url(#satDsmall)"/>
+  <circle cx="162" cy="100" r="1.5" fill="#E8ECF5"/>
+  <circle cx="143.84" cy="143.84" r="8" fill="url(#satDsmall)"/>
+  <circle cx="143.84" cy="143.84" r="1.5" fill="#E8ECF5"/>
+  <circle cx="100" cy="162" r="8" fill="url(#satDsmall)"/>
+  <circle cx="100" cy="162" r="1.5" fill="#E8ECF5"/>
+  <circle cx="56.16" cy="143.84" r="8" fill="url(#satDsmall)"/>
+  <circle cx="56.16" cy="143.84" r="1.5" fill="#E8ECF5"/>
+  <circle cx="38" cy="100" r="8" fill="url(#satDsmall)"/>
+  <circle cx="38" cy="100" r="1.5" fill="#E8ECF5"/>
+  <circle cx="56.16" cy="56.16" r="8" fill="url(#satDsmall)"/>
+  <circle cx="56.16" cy="56.16" r="1.5" fill="#E8ECF5"/>
+  <!-- Center -->
+  <circle cx="100" cy="100" r="34" fill="url(#centerD)"/>
+  <circle cx="100" cy="100" r="4.5" fill="#F0C45A"/>
+  <circle cx="100" cy="100" r="1.6" fill="#FFFFFF"/>
+</svg>

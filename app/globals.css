@@ -1,26 +1,82 @@
 @import "tailwindcss";
 
+/* ------------------------------------------------------------------ */
+/*  Cosmos palette                                                     */
+/* ------------------------------------------------------------------ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --cosmos-void:      #0A0E1A;
+  --cosmos-deep:      #111833;
+  --cosmos-nebula:    #1A1F4D;
+  --celestial-white:  #E8ECF5;
+  --celestial-dim:    #8B95B0;
+  --ethereal-blue:    #4A7BF7;
+  --ethereal-glow:    #6BB8FF;
+  --warm-cream:       #F0E0BC;
+  --warm-tan:         #C8B89A;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--cosmos-void);
+  --color-foreground: var(--celestial-white);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+html, body {
+  background: var(--cosmos-void);
+  color: var(--celestial-white);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  margin: 0;
+  min-height: 100%;
+  overscroll-behavior: none;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Cosmos canvas — fixed, behind everything, non-interactive          */
+/* ------------------------------------------------------------------ */
+.cosmos-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  contain: strict;
+  will-change: contents;
+}
+
+/* Static fallback when WebGL fails — brand mark on cosmic gradient */
+.cosmos-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+    circle at 50% 45%,
+    oklch(0.20 0.04 265) 0%,
+    oklch(0.13 0.03 265) 60%
+  );
+}
+.cosmos-fallback-mark {
+  width: min(220px, 42vw);
+  height: auto;
+  opacity: 0.18;
+  filter: brightness(2);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Content layer — sits above the cosmos                              */
+/* ------------------------------------------------------------------ */
+.content-layer {
+  position: relative;
+  z-index: 1;
+}
+
+/* Crosshair-style cursor on devices that have a fine pointer (desktop) */
+@media (hover: hover) and (pointer: fine) {
+  body {
+    cursor: crosshair;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Reduced motion respect */
+@media (prefers-reduced-motion: reduce) {
+  .cosmos-canvas {
+    animation: none;
+  }
 }

@@ -18,6 +18,14 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#0A0E1A",
+  // Lock pinch-zoom so the cosmos canvas + atmospheric backdrop never
+  // detach from the visual viewport on iOS (where zoom + position:fixed
+  // produce dark gaps around the canvas). The cosmos is the experience —
+  // OS-level accessibility zoom still works for users who need it.
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({

@@ -135,20 +135,17 @@ export class CosmosEngine {
     this.scene.add(this.particleSystem.group);
 
     // ---- Detect compute capability ----
-    // Try a single compute dispatch. If it works, we use GPU compute.
-    // If it throws (WebGL2 fallback), we use CPU animation.
-    if (this.gpuTier.renderer === "webgpu") {
-      try {
-        this.renderer.compute(this.particleSystem.computeUpdate);
-        this.useGPUCompute = true;
-        console.log("[CosmosEngine] GPU compute available ✓");
-      } catch (e) {
-        this.useGPUCompute = false;
-        console.log("[CosmosEngine] GPU compute failed, using CPU animation:", e);
-      }
-    } else {
+    // Try a single compute dispatch on every backend. Three.js TSL transparently
+    // emulates compute on WebGL2 via fragment-shader render-to-texture when the
+    // backend is WebGL2. If it throws (truly ancient device), we fall back to
+    // the CPU animate path as last resort.
+    try {
+      this.renderer.compute(this.particleSystem.computeUpdate);
+      this.useGPUCompute = true;
+      console.log(`[CosmosEngine] GPU compute available ✓  backend=${this.gpuTier.renderer}`);
+    } catch (e) {
       this.useGPUCompute = false;
-      console.log("[CosmosEngine] WebGL2 mode — using CPU animation");
+      console.warn(`[CosmosEngine] GPU compute unavailable on ${this.gpuTier.renderer}, falling back to CPU:`, e);
     }
 
     // ---- Set initial particle count ----
@@ -171,13 +168,11 @@ export class CosmosEngine {
       this.particleSystem.setNoBloom();
     }
 
-    console.log("[CosmosEngine] Initialized:", {
-      gpuTier: this.gpuTier,
-      initialParticles: initialCount,
-      maxParticles,
-      hasBloom: !!this.renderPipeline,
-      useGPUCompute: this.useGPUCompute,
-    });
+    console.log(
+      `[CosmosEngine] Init: tier=${this.gpuTier.tier} backend=${this.gpuTier.renderer} ` +
+      `particles=${initialCount}/${maxParticles} bloom=${!!this.renderPipeline} ` +
+      `compute=${this.useGPUCompute}`,
+    );
 
     // ---- Performance Monitor ----
     const perfConfig: PerformanceMonitorConfig = this.useGPUCompute

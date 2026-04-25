@@ -25,9 +25,9 @@ import {
 } from "three/webgpu";
 
 import {
-  uniform, float, vec2, vec4,
-  attribute, sub, length, smoothstep, mul,
-  texture as textureNode, uv,
+  uniform, float, vec4,
+  attribute,
+  texture as textureNode,
 } from "three/tsl";
 
 /* ---------------------------------------------------------------- */
@@ -92,14 +92,12 @@ export function createStarSky(count: number = 4000): Points {
   material.blending = AdditiveBlending;
   material.depthWrite = false;
   // Per-vertex color + size, with a uniform tint multiplier for global control.
+  // Stars at this scale (0.02-0.20) are sub-pixel — no UV-based radial alpha
+  // is needed; they read as point glints regardless of square-quad rendering.
   const skyTint = uniform(float(0.85));
   const colorAttr = attribute("color", "vec3");
   const sizeAttr = attribute("size", "float");
-  // Radial alpha falloff (sprite quad → round soft point)
-  const uvFromCenter = sub(uv(), vec2(0.5, 0.5));
-  const radialDist = length(uvFromCenter);
-  const radialFalloff = smoothstep(float(0.5), float(0.0), radialDist);
-  material.colorNode = vec4(colorAttr, mul(skyTint, radialFalloff));
+  material.colorNode = vec4(colorAttr, skyTint);
   material.sizeNode = sizeAttr;
 
   const sky = new Points(geometry, material);

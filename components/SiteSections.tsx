@@ -183,7 +183,7 @@ function CTASection() {
         </Reveal>
         <Reveal delay={280}>
           <a
-            href="mailto:venu-kumar@thefixer.in?subject=Opto%20API%20key%20request"
+            href="/get-key"
             className="inline-flex items-center gap-2 px-8 py-4 border border-[color:var(--gold-bright)]/60 text-[color:var(--gold-bright)] hover:bg-[color:var(--gold-bright)]/10 transition-colors duration-300 text-base tracking-wide"
           >
             Get an API key

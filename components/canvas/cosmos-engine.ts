@@ -14,6 +14,7 @@ import {
   WebGPURenderer,
   RenderPipeline,
   Color,
+  ACESFilmicToneMapping,
 } from "three/webgpu";
 
 import { pass } from "three/tsl";
@@ -56,6 +57,10 @@ export class CosmosEngine {
   private useGPUCompute = false;
   private _hasBloom = false;
 
+  /** Camera handheld drift state — gives the "I'm inside this" feel */
+  private _cameraBaseZ = 30;
+  private _reducedMotion = false;
+
   private unsubscribeScroll: (() => void) | null = null;
 
   /** Public access for animation controllers (e.g. HeroSection GSAP timeline) */
@@ -73,6 +78,10 @@ export class CosmosEngine {
 
   async init(): Promise<void> {
     this.gpuTier = await detectGPUTier();
+
+    // Capture motion preference once — gates camera drift, pulse animations.
+    this._reducedMotion = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 
     // ---- Scene ----
     this.scene = new Scene();
@@ -99,6 +108,13 @@ export class CosmosEngine {
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.width, this.height);
+
+    // HDR + ACES filmic tone mapping. Bright cluster centers + supernovae
+    // can now exceed nominal max-white and roll off cinematically through
+    // the ACES curve instead of clipping flat. Exposure tuned slightly above
+    // 1.0 for confident-bright cosmos without crushing highlights.
+    this.renderer.toneMapping = ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.15;
 
     await this.renderer.init();
 
@@ -238,6 +254,21 @@ export class CosmosEngine {
 
     // ---- Update uniforms ----
     this.particleSystem.update(time, deltaTime);
+
+    // ---- Camera handheld drift ----
+    // Two layered low-frequency oscillators per axis create breathing,
+    // non-repeating motion that sells "I'm inside this" without inducing
+    // motion sickness. Skipped under prefers-reduced-motion.
+    if (!this._reducedMotion) {
+      const t = time;
+      const ampXY = 0.45;
+      const ampZ = 0.30;
+      const dx = (Math.sin(t * 0.13) * 0.7 + Math.sin(t * 0.31) * 0.3) * ampXY;
+      const dy = (Math.cos(t * 0.11) * 0.7 + Math.sin(t * 0.27) * 0.3) * ampXY * 0.8;
+      const dz = (Math.cos(t * 0.09) * 0.6 + Math.sin(t * 0.21) * 0.4) * ampZ;
+      this.camera.position.set(dx, dy, this._cameraBaseZ + dz);
+      this.camera.lookAt(0, 0, 0);
+    }
 
     // ---- Animate particles (GPU compute or CPU fallback) ----
     if (this.useGPUCompute) {

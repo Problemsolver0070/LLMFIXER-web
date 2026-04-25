@@ -30,6 +30,7 @@ import {
   mix,
   clamp,
   smoothstep,
+  step,
   length,
   hash,
   instanceIndex,
@@ -58,6 +59,8 @@ const etherealBlue = new Color(COLORS.etherealBlue);
 const etherealGlow = new Color(COLORS.etherealGlow);
 const goldWarm = new Color(COLORS.goldWarm);
 const goldBright = new Color(COLORS.goldBright);
+const hAlpha = new Color(COLORS.hAlpha);
+const oxygenTeal = new Color(COLORS.oxygenTeal);
 
 /* ------------------------------------------------------------------ */
 /*  Create material                                                   */
@@ -85,14 +88,23 @@ export function createParticleMaterial(
   const particleHash = hash(instanceIndex);
   const particleHash2 = hash(add(instanceIndex, float(7919)));
 
-  // ---- Color: blend ethereal blue → cyan, shift toward gold on scroll ----
-  const baseColor = mix(
-    color(etherealBlue),
-    color(etherealGlow),
-    particleHash,
-  );
+  // ---- Per-particle color variation (JWST-flavored emission spectrum) ----
+  // Population (by particleHash2):
+  //   [0.00, 0.70)  cool — varied blue↔cyan blend (the dominant majority)
+  //   [0.70, 0.85)  cream — slight stellar warmth
+  //   [0.85, 0.95)  H-alpha — rare ionized-hydrogen red accents
+  //   [0.95, 1.00)  oxygen teal — rarest cyan-green accents
+  // step(threshold, h) returns 1 when h >= threshold, 0 otherwise — chained
+  // mix() calls let the highest matching threshold's color win.
+  const coolBlend = mix(color(etherealBlue), color(etherealGlow), particleHash);
+  let speciesColor = coolBlend;
+  speciesColor = mix(speciesColor, color(goldBright),  step(float(0.70), particleHash2));
+  speciesColor = mix(speciesColor, color(hAlpha),       step(float(0.85), particleHash2));
+  speciesColor = mix(speciesColor, color(oxygenTeal),   step(float(0.95), particleHash2));
+
+  // ---- Scroll shifts cool particles toward warm; accent particles stay vivid ----
   const scrollShiftedColor = mix(
-    baseColor,
+    speciesColor,
     color(goldWarm),
     clamp(uMatScrollProgress.mul(0.6), float(0), float(0.5)),
   );
@@ -108,6 +120,13 @@ export function createParticleMaterial(
   const breathPhase = add(uMatTime.mul(0.5), particleHash.mul(6.2831));
   const breathFactor = add(float(0.8), mul(sin(breathPhase), float(0.2)));
 
+  // ---- Per-particle twinkle ----
+  // Faster than breath, sharper amplitude, wildly varied per particle so the
+  // field reads as alive at the atomic scale instead of synchronized.
+  const twinklePhase = add(uMatTime.mul(2.4), particleHash2.mul(6.2831));
+  const twinkleAmp = mul(particleHash2, float(0.18));
+  const twinkleFactor = add(float(1.0), mul(sin(twinklePhase), twinkleAmp));
+
   // ---- Distance-based opacity fade ----
   const pos = posStorage.element(instanceIndex);
   const dist = length(pos);
@@ -118,6 +137,7 @@ export function createParticleMaterial(
   const baseAlpha = mul(
     float(0.12),
     breathFactor,
+    twinkleFactor,
     distanceFade,
     mix(float(0.4), float(1.0), centerBoost),
   );

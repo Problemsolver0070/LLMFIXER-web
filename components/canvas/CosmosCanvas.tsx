@@ -67,6 +67,8 @@ export default function CosmosCanvas() {
     mouseDownStateRef.current.x = e.clientX;
     mouseDownStateRef.current.y = e.clientY;
     mouseDownStateRef.current.active = true;
+    // Mechanic 3: a click is interaction even without movement.
+    engineRef.current?.notifyInteraction();
   }, []);
 
   const handleMouseUp = useCallback((e: MouseEvent) => {
@@ -78,6 +80,8 @@ export default function CosmosCanvas() {
     if (Math.sqrt(dx * dx + dy * dy) <= DRAG_THRESHOLD_PX) {
       engineRef.current?.triggerNova(e.clientX, e.clientY);
     }
+    // Mechanic 3: any click (drag or tap) counts as interaction.
+    engineRef.current?.notifyInteraction();
   }, []);
 
   /* ---- Touch handlers: hold → gravitational well, drag → velocity wake ---- */

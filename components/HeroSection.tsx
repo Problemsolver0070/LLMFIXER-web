@@ -191,7 +191,7 @@ export default function HeroSection() {
       // get sharper simpler marks. Range: 6500 → 11000.
       const TARGET_COUNT = Math.floor(clamp(6500 + dwellMs * 1.2, 6500, 11000));
 
-      // Sub-peak count: 1-3 inner sub-densities scaled by dwell.
+      // Sub-peak count: 0-3 inner sub-densities scaled by dwell.
       // 0 sub-peaks at low dwell (<800ms), up to 3 at high dwell (>2400ms).
       const subPeakCount = clamp(Math.floor((dwellMs - 800) / 600) + 1, 0, 3);
 

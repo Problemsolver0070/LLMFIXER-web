@@ -189,9 +189,10 @@ export function createParticleMaterial(
   // visual "energized atoms" halo around where the viewer is looking,
   // separate from the curl-noise force in the compute shader.
   const pointerDist = length(sub(pos, uPointerWorld));
-  // Inner peak at distance 0.5 (fully energized), outer fade by 3.0.
-  // smoothstep(3.0, 0.5, d) returns 1 at center, 0 beyond 3 units.
-  const pointerProximity = smoothstep(float(3.0), float(0.5), pointerDist);
+  // Inner peak at distance 0.5 (fully energized), outer fade by 4.5 — sits
+  // at the upper end of the spec's "~3-5 unit falloff zone" so the halo
+  // reads clearly without dominating ambient drift.
+  const pointerProximity = smoothstep(float(4.5), float(0.5), pointerDist);
   // Multiplied by external strength so brief flares (e.g. tap nova) can
   // pulse the halo without re-projecting world coords every frame.
   const pointerEmphasis = mul(pointerProximity, uPointerStrength);

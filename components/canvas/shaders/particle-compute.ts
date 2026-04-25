@@ -79,10 +79,15 @@ export function createParticleComputeShader(
     // ================================================================
     // Sampled at particle's CURRENT POSITION — as it moves, force
     // direction changes, producing organic flowing paths (not oscillation).
-    const px = pos.x.mul(0.08);
-    const py = pos.y.mul(0.08);
-    const pz = pos.z.mul(0.08);
-    const t = uTime.mul(0.15);
+    //
+    // Spatial scale halved (0.08 → 0.04) so visible "currents" form across
+    // larger regions of the field rather than chaotic small-scale wandering.
+    // Time scale also halved (0.15 → 0.08) so the flow morphs slowly
+    // — meditative, not frenetic.
+    const px = pos.x.mul(0.04);
+    const py = pos.y.mul(0.04);
+    const pz = pos.z.mul(0.04);
+    const t = uTime.mul(0.08);
 
     // Two scalar fields
     const a0 = sin(add(px, t.mul(0.7)).add(h0.mul(1.5)));

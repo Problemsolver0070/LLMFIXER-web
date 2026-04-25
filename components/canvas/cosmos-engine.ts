@@ -420,6 +420,15 @@ export class CosmosEngine {
     // directional flow, not just a one-time camera shift.
     this.particleSystem.setTiltFlow(this._smoothedTiltX, this._smoothedTiltY);
 
+    // Slow global rotation around Y — gives the cosmos a sense of "we're
+    // drifting through space" rather than looking at a static field.
+    // 0.04 rad/sec ≈ a full turn every 2.6 minutes. Below conscious detection
+    // but the eye picks it up subliminally as "this is alive and moving."
+    // Skipped under prefers-reduced-motion.
+    if (!this._reducedMotion) {
+      this.particleSystem.group.rotation.y = time * 0.04;
+    }
+
     // ---- Pointer halo re-projection (mechanic 2) + nova flare (mechanic 5)
     // Project the last cursor position into world space every tick. We must
     // re-project because the camera drifts; the halo would slide off the

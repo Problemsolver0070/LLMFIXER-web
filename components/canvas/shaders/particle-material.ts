@@ -171,10 +171,10 @@ export function createParticleMaterial(
   const breathFactor = add(float(0.8), mul(sin(breathPhase), float(0.2)));
 
   // ---- Per-particle twinkle ----
-  // Faster than breath, sharper amplitude, wildly varied per particle so the
-  // field reads as alive at the atomic scale instead of synchronized.
-  const twinklePhase = add(uMatTime.mul(2.4), particleHash2.mul(6.2831));
-  const twinkleAmp = mul(particleHash2, float(0.18));
+  // Slowed from 2.4 → 0.8 Hz and amplitude reduced 0.18 → 0.10 so the field
+  // reads as a slow soft pulse, not a flicker. Hypnotic, not jittery.
+  const twinklePhase = add(uMatTime.mul(0.8), particleHash2.mul(6.2831));
+  const twinkleAmp = mul(particleHash2, float(0.10));
   const twinkleFactor = add(float(1.0), mul(sin(twinklePhase), twinkleAmp));
 
   // ---- Distance-based opacity fade ----
@@ -290,8 +290,9 @@ export function createParticleMaterial(
   const uvFromCenter = sub(uv(), vec2(0.5, 0.5));
   const radialDist = length(uvFromCenter);
 
-  // Outer halo — soft atmosphere
-  const halo = smoothstep(float(0.5), float(0.0), radialDist);
+  // Outer halo — soft atmosphere. Range widened 0.5 → 0.55 so the falloff
+  // extends to the sprite-quad corners more gently. Velvet, not crystalline.
+  const halo = smoothstep(float(0.55), float(0.0), radialDist);
 
   // Bright inner core — narrow nucleus, resolution-independent
   const core = smoothstep(float(0.08), float(0.0), radialDist);
@@ -343,22 +344,28 @@ export function createParticleMaterial(
     float(2.6),
     isAtLeastSupernova,
   );
+  // Star spikes killed entirely (was 0.18) — diffraction crosses on every
+  // star read as crystalline cosmic photography, not ASMR. Supernova spikes
+  // dialed way down (1.6 → 0.5) so the few remaining bright events still
+  // feel like events but don't dominate.
   const spikeWeight = mix(
     mix(
-      mix(float(0.18), float(0.0), isAtLeastDust),
+      mix(float(0.0), float(0.0), isAtLeastDust),
       float(0.0),
       isAtLeastNebula,
     ),
-    float(1.6),
+    float(0.5),
     isAtLeastSupernova,
   );
   const ringWeight = mix(float(0.0), float(0.45), isAtLeastSupernova);
 
-  // Compose the procedural particle alpha
+  // Compose the procedural particle alpha. Nucleus weight dropped 0.9 → 0.4
+  // so the bright pixel-tight white core is much softer — particles read as
+  // glowing orbs, not pin-sharp stars. Halo + core do the lifting.
   const procShape = add(
     mul(halo, haloWeight),
     mul(core, coreWeight),
-    mul(nucleus, float(0.9)),
+    mul(nucleus, float(0.4)),
     mul(allSpikes, spikeWeight),
     mul(outerRing, ringWeight),
   );

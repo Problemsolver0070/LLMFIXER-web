@@ -49,7 +49,10 @@ export const PARTICLE_CONFIG = {
   // That's the floor where a soft-edged halo + bright core + diffraction
   // spikes are actually distinguishable per-particle.
   particleSize: 0.10,
-  driftSpeed: 1.2,
+  // Drift speed dropped 1.2 → 0.5 for hypnotic, meditative motion. The
+  // earlier value made the field feel frenetic/chaotic; this slows it
+  // toward the "drifting through nebulae" ASMR feel.
+  driftSpeed: 0.5,
 } as const;
 
 export const SCROLL_CONFIG = {

@@ -212,10 +212,11 @@ export function createParticleMaterial(
 
   // ---- Final opacity (low per-particle — additive blending accumulates) ----
   const baseAlpha = mul(
-    // Bumped from 0.12 → 0.20 (~65% brighter baseline). The earlier value
-    // made the field read as scattered specks ("looks like dirt") at hero
-    // scale. Atomic discreteness is preserved by twinkle + class modulation.
-    float(0.20),
+    // Calibrated 0.16 — between the original 0.12 (read as dirt) and
+    // 0.20 (read as too-busy). Atomic discreteness preserved via twinkle +
+    // class modulation; supernova ratio + sky tint do the heavy lifting
+    // for "this is a cosmos, not specks."
+    float(0.16),
     breathFactor,
     twinkleFactor,
     distanceFade,

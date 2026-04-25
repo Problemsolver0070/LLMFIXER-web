@@ -29,6 +29,7 @@ import {
 } from "@/components/canvas/performance-monitor";
 
 import { ParticleSystem } from "./particle-system";
+import { createStarSky } from "./background-layers";
 
 /* ------------------------------------------------------------------ */
 /*  Engine                                                            */
@@ -118,7 +119,17 @@ export class CosmosEngine {
 
     await this.renderer.init();
 
-    // ---- Particle System ----
+    // ---- Background star sky ----
+    // Far-distance static stars give the active field depth parallax when
+    // the camera drifts. The nebula billboards experiment was removed —
+    // 5 fixed colored sprites read as "lamps in space," not as atmosphere.
+    // Atmospheric depth is being deferred to a noise-based approach later.
+    const skyDensity = this.gpuTier.tier === "high" ? 5000
+                     : this.gpuTier.tier === "medium" ? 3000
+                     : 1500;
+    this.scene.add(createStarSky(skyDensity));
+
+    // ---- Active particle system ----
     const maxParticles = this.gpuTier.maxParticles;
     this.particleSystem = new ParticleSystem(maxParticles);
     this.scene.add(this.particleSystem.group);

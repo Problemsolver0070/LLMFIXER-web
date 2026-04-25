@@ -21,20 +21,24 @@ import {
 import {
   uniform,
   float,
+  vec2,
   vec3,
   vec4,
   color,
   sin,
   mul,
   add,
+  sub,
   mix,
   clamp,
   smoothstep,
   step,
   length,
   hash,
+  abs as tslAbs,
   instanceIndex,
   storage,
+  uv,
 } from "three/tsl";
 
 import { COLORS } from "@/lib/theme";
@@ -212,8 +216,98 @@ export function createParticleMaterial(
     maxGlowAlpha,
   );
 
+  // ---- Procedural particle sprite ----
+  // Each sprite is a square quad. The fragment shader paints an "atom" with
+  // resolution-independent features so the particle stays sharp at any zoom
+  // level (no texture to blur):
+  //   - Halo               soft atmosphere falloff
+  //   - Core + nucleus     sharp inner glow + pixel-tight bright dot
+  //   - 6-point spikes     three rotated thin lines through center (JWST look)
+  //   - Outer ring         faint atomic-shell ring on bright particles only
+  //
+  // Class modulation: nested mix() chains, supernova-strongest wins.
+  const uvFromCenter = sub(uv(), vec2(0.5, 0.5));
+  const radialDist = length(uvFromCenter);
+
+  // Outer halo — soft atmosphere
+  const halo = smoothstep(float(0.5), float(0.0), radialDist);
+
+  // Bright inner core — narrow nucleus, resolution-independent
+  const core = smoothstep(float(0.08), float(0.0), radialDist);
+  // Pixel-precise ultra-bright nucleus
+  const nucleus = smoothstep(float(0.025), float(0.0), radialDist);
+
+  // 6-point diffraction spikes — three thin lines at 0°, 60°, 120° through
+  // center. Each line is the set of points where one of these distances is
+  // near zero. Geometry: for a line at angle θ, the perpendicular distance
+  // from a UV point is |x·-sin θ + y·cos θ|.
+  const SIN60 = 0.8660254;
+  const COS60 = 0.5;
+  // Line 1: angle 0°  → distance is just |y|
+  const d1 = tslAbs(uvFromCenter.y);
+  // Line 2: angle 60° → distance is |x·-sin60 + y·cos60|
+  const d2 = tslAbs(sub(mul(uvFromCenter.y, float(COS60)), mul(uvFromCenter.x, float(SIN60))));
+  // Line 3: angle 120° → distance is |x·sin60 + y·cos60|
+  const d3 = tslAbs(add(mul(uvFromCenter.x, float(SIN60)), mul(uvFromCenter.y, float(COS60))));
+  const spikeFalloff = smoothstep(float(0.5), float(0.0), radialDist);
+  const spike1 = smoothstep(float(0.010), float(0.0), d1);
+  const spike2 = smoothstep(float(0.010), float(0.0), d2);
+  const spike3 = smoothstep(float(0.010), float(0.0), d3);
+  const allSpikes = mul(add(spike1, spike2, spike3), spikeFalloff);
+
+  // Outer atomic-shell ring — faint glow at radial distance ~0.34, only
+  // perceptible on the brightest (supernova) class. Adds visible structure
+  // at zoom: viewer sees core → empty space → faint ring → fade.
+  const outerRing = mul(
+    smoothstep(float(0.28), float(0.34), radialDist),
+    smoothstep(float(0.42), float(0.34), radialDist),
+  );
+
+  // Class-driven feature intensities
+  const haloWeight = mix(
+    mix(
+      mix(float(1.0), float(1.4), isAtLeastDust),
+      float(1.6),
+      isAtLeastNebula,
+    ),
+    float(1.3),
+    isAtLeastSupernova,
+  );
+  const coreWeight = mix(
+    mix(
+      mix(float(0.9), float(0.0), isAtLeastDust),
+      float(0.0),
+      isAtLeastNebula,
+    ),
+    float(2.6),
+    isAtLeastSupernova,
+  );
+  const spikeWeight = mix(
+    mix(
+      mix(float(0.18), float(0.0), isAtLeastDust),
+      float(0.0),
+      isAtLeastNebula,
+    ),
+    float(1.6),
+    isAtLeastSupernova,
+  );
+  const ringWeight = mix(float(0.0), float(0.45), isAtLeastSupernova);
+
+  // Compose the procedural particle alpha
+  const procShape = add(
+    mul(halo, haloWeight),
+    mul(core, coreWeight),
+    mul(nucleus, float(0.9)),
+    mul(allSpikes, spikeWeight),
+    mul(outerRing, ringWeight),
+  );
+
+  // Final alpha — multiply intrinsic glow brightness by procedural shape.
+  // clamp so additive blending doesn't blow stupid-far above 1.
+  const shapedAlpha = clamp(mul(glowAlpha, procShape), float(0.0), float(2.5));
+
   // Assign to material — classedColor folds in the supernova-white override
-  material.colorNode = vec4(classedColor, glowAlpha);
+  material.colorNode = vec4(classedColor, shapedAlpha);
   material.scaleNode = vec3(particleScale, particleScale, particleScale);
 
   return material;

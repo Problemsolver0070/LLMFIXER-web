@@ -67,10 +67,17 @@ export class CosmosEngine {
    *  device tilt doesn't conflate with pointer position. */
   private _tiltOffsetX = 0;
   private _tiltOffsetY = 0;
+  /** Smoothed tilt — lerped toward _tiltOffsetX/Y each tick so camera and
+   *  flow respond as a continuous glide rather than per-event jumps. */
+  private _smoothedTiltX = 0;
+  private _smoothedTiltY = 0;
   /** Multiplier for tilt → camera offset (world units). 1.5 picked so a 45°
    *  device tilt parallaxes the foreground by ±1.5 units while the static
    *  star sky at z=-50..-80 visibly shifts more. */
   private static readonly TILT_OFFSET_MAGNITUDE = 1.5;
+  /** Tilt-smoothing rate — 0.10 gives ~7-frame (~110ms) half-life: latency
+   *  imperceptible, jitter visibly smoothed. */
+  private static readonly TILT_SMOOTH_RATE = 0.10;
 
   /** Stillness-reward state (mechanic 3) — track last interaction wallclock
    *  in ms. Idle ramp begins after IDLE_THRESHOLD seconds, fully ramps over
@@ -393,14 +400,25 @@ export class CosmosEngine {
       driftY = (Math.cos(t * 0.11) * 0.7 + Math.sin(t * 0.27) * 0.3) * ampXY * 0.8;
       driftZ = (Math.cos(t * 0.09) * 0.6 + Math.sin(t * 0.21) * 0.4) * ampZ;
     }
-    const tiltX = this._tiltOffsetX * CosmosEngine.TILT_OFFSET_MAGNITUDE;
-    const tiltY = this._tiltOffsetY * CosmosEngine.TILT_OFFSET_MAGNITUDE;
+    // Smooth the applied tilt toward the latest reading. This makes camera
+    // and flow respond as a continuous glide rather than per-event jumps,
+    // which sells "buttery smooth" instead of "step → step → step."
+    this._smoothedTiltX += (this._tiltOffsetX - this._smoothedTiltX) * CosmosEngine.TILT_SMOOTH_RATE;
+    this._smoothedTiltY += (this._tiltOffsetY - this._smoothedTiltY) * CosmosEngine.TILT_SMOOTH_RATE;
+    const tiltX = this._smoothedTiltX * CosmosEngine.TILT_OFFSET_MAGNITUDE;
+    const tiltY = this._smoothedTiltY * CosmosEngine.TILT_OFFSET_MAGNITUDE;
     this.camera.position.set(
       driftX + tiltX,
       driftY + tiltY,
       this._cameraBaseZ + driftZ,
     );
     this.camera.lookAt(0, 0, 0);
+
+    // Tilt also biases the curl-noise flow field via uTiltX/uTiltY uniforms
+    // — the field continuously drifts in the direction the user is tilting.
+    // This is the "the flow should change" piece: holding tilt = sustained
+    // directional flow, not just a one-time camera shift.
+    this.particleSystem.setTiltFlow(this._smoothedTiltX, this._smoothedTiltY);
 
     // ---- Pointer halo re-projection (mechanic 2) + nova flare (mechanic 5)
     // Project the last cursor position into world space every tick. We must

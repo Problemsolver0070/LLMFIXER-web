@@ -186,9 +186,12 @@ export default function CosmosCanvas() {
     const relativeGamma = e.gamma - base.gamma;
     const relativeBeta = e.beta - base.beta;
 
-    // Slow adaptive drift — baseline follows gradual posture changes (1% per reading)
-    base.beta += (e.beta - base.beta) * 0.01;
-    base.gamma += (e.gamma - base.gamma) * 0.01;
+    // Adaptive baseline drift — was 1%/reading (~half-life 1s at 60Hz),
+    // which absorbed user-held tilts almost instantly. 0.3% gives a
+    // ~4 s half-life: gentle posture-change tracking over tens of seconds
+    // without eating the user's intentional tilts.
+    base.beta += (e.beta - base.beta) * 0.003;
+    base.gamma += (e.gamma - base.gamma) * 0.003;
 
     // Mechanic 4: tilt parallaxes the CAMERA, not the cursor. Map ±45° tilt
     // to ±1 normalized offset; the engine clamps and scales by its tilt

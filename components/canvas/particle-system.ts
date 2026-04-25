@@ -25,6 +25,8 @@ import {
   uDriftSpeed,
   uBoundaryRadius,
   uSeekStrength,
+  uTiltX,
+  uTiltY,
 } from "./shaders/particle-compute";
 
 import {
@@ -378,6 +380,13 @@ export class ParticleSystem {
     if (this.sprite) {
       this.sprite.count = this._activeCount;
     }
+  }
+
+  /** Update tilt-driven flow bias (mechanic 4). Engine smooths and writes
+   *  this each tick. Values are normalized -1..1; compute kernel scales. */
+  setTiltFlow(x: number, y: number): void {
+    uTiltX.value = x;
+    uTiltY.value = y;
   }
 
   getParticleCount(): number {

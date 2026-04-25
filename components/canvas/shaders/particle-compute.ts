@@ -46,6 +46,12 @@ export const uScrollProgress = /* @__PURE__ */ uniform(float(0));
 export const uDriftSpeed = /* @__PURE__ */ uniform(float(1.0));
 export const uBoundaryRadius = /* @__PURE__ */ uniform(float(26));
 export const uSeekStrength = /* @__PURE__ */ uniform(float(0));
+/* Tilt-driven flow bias (mechanic 4 — continuous flow change). Each is in
+ * normalized -1..1 space (passed pre-smoothed by the engine). The compute
+ * kernel adds a gentle directional gravity proportional to these values
+ * so the curl-noise flow visibly drifts in the direction the user tilts. */
+export const uTiltX = /* @__PURE__ */ uniform(float(0));
+export const uTiltY = /* @__PURE__ */ uniform(float(0));
 
 /* ------------------------------------------------------------------ */
 /*  Build compute kernel                                              */
@@ -136,6 +142,16 @@ export function createParticleComputeShader(
     const scrollLift = vec3(float(0), uScrollProgress.mul(0.15), float(0));
 
     // ================================================================
+    // TILT FLOW (mechanic 4 — continuous directional bias)
+    // ================================================================
+    // Gentle directional gravity proportional to device tilt. Holding tilt
+    // produces sustained one-direction flow; the field reads as "the cosmos
+    // tilts with the device" rather than just a one-shot camera shift.
+    // Magnitude tuned modest (0.6) so it's perceptible but doesn't override
+    // the curl-noise flow's organic feel.
+    const tiltFlow = vec3(uTiltX.mul(0.6), uTiltY.mul(-0.6), float(0));
+
+    // ================================================================
     // SEEK TARGET (logo convergence)
     // ================================================================
     const target = targetStorage.element(instanceIndex);
@@ -152,7 +168,7 @@ export function createParticleComputeShader(
     const damping = mix(float(0.992), float(0.94), uSeekStrength);
     const totalForce = add(
       add(add(add(add(driftForce, mouseForce), boundaryForce), centerPull), seekForce),
-      add(scrollPush, scrollLift),
+      add(add(scrollPush, scrollLift), tiltFlow),
     );
     vel.assign(add(mul(vel, damping), totalForce.mul(uDeltaTime)));
 

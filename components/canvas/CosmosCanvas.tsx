@@ -162,6 +162,12 @@ export default function CosmosCanvas() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // Capture mutable touch state at effect-init time so the cleanup
+    // closes over the same object the listeners write to. The ref's
+    // .current is stable for the lifetime of this component, so this
+    // is semantically a no-op (and silences react-hooks/exhaustive-deps).
+    const touchState = touchStateRef.current;
+
     let disposed = false;
     const engine = new CosmosEngine(canvas);
     engineRef.current = engine;
@@ -220,8 +226,8 @@ export default function CosmosCanvas() {
       window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("touchend", handleTouchEnd);
       window.removeEventListener("touchcancel", handleTouchEnd);
-      if (touchStateRef.current.holdTimer) {
-        clearInterval(touchStateRef.current.holdTimer);
+      if (touchState.holdTimer) {
+        clearInterval(touchState.holdTimer);
       }
       window.removeEventListener("deviceorientation", handleOrientation);
       window.removeEventListener("touchstart", requestGyro);

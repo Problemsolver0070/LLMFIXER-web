@@ -1,36 +1,20 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LLMFIXER-web (archived)
 
-## Getting Started
+This repo holds an experimental marketing site (Next.js 16 + React 19 with a WebGPU/WebGL2 particle cosmos canvas). It was originally intended to live at the apex domain `thefixer.in/` and surface a `/get-key` flow that minted a one-shot trial `opto_*` API key.
 
-First, run the development server:
+**Status (2026-04-28): not deployed, no plans to deploy.** The product is the marketing; the apex `thefixer.in/` and the console `thefixer.in/app/*` are both served by [`llmfixer-app`](https://github.com/Problemsolver0070/llmfixer-app). The canonical reference for the live product is [`llmfixer-api/docs/PROJECT_REFERENCE.md`](https://github.com/Problemsolver0070/llmfixer-api/blob/main/docs/PROJECT_REFERENCE.md).
+
+The code is left here as a snapshot in case the marketing-site direction is ever revisited. If you do revive it:
+
+- The cosmos engine still depends on Three.js + TSL shaders (`components/canvas/cosmos-engine.ts`).
+- The `/get-key` form posts to `api.thefixer.in/v1/keys/request`, which **does not currently exist on the backend**. You'd need to add that route on `llmfixer-api` first.
+- A new Azure Static Web App (or path-routing on the existing `thefixer-web` SWA) is required for the apex binding; today the apex is owned by the console.
+
+To work locally:
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+To stop developing on this repo: archive it on GitHub, or just leave it as-is.
